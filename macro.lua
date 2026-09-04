@@ -36,6 +36,7 @@ local HOME = os.getenv("HOME") or ""
 M.dir      = HOME .. "/.mantra_macro"
 M.file     = M.dir .. "/last.json"
 M.recDir   = M.dir .. "/recordings"
+M.macDir   = M.dir .. "/macros"        -- the named ones: New Macro, Load Macro
 M.setFile  = M.dir .. "/settings.json"
 
 M.MODS   = { "ctrl", "alt", "cmd" }
@@ -47,6 +48,8 @@ M.SPEEDS = { 0.5, 1, 2, 4, 8 }
 M.DELAYS = { 0, 0.25, 0.5, 1, 2 }
 
 M.events    = nil     -- the recording in memory, a list of {t=, kind=, ...}
+M.current   = nil     -- the name of the macro in memory, nil for the plain last recording
+M.pending   = nil     -- the name a New Macro recording will be saved under
 M.recording = false
 M.playing   = false
 M.loaded    = false   -- the star's running()
@@ -206,7 +209,64 @@ function M.stopRecording()
     local rec = { version = 1, recorded = os.date("%Y-%m-%d %H:%M:%S"), events = evs }
     pcall(hs.json.write, rec, M.file, false, true)
     pcall(hs.json.write, rec, M.recDir .. "/" .. os.date("%Y%m%d-%H%M%S") .. ".json", false, true)
+    if M.pending then
+        hs.fs.mkdir(M.macDir)
+        pcall(hs.json.write, rec, M.macDir .. "/" .. M.pending .. ".json", false, true)
+        M.current, M.pending = M.pending, nil
+    else
+        M.current = nil
+    end
+    M.settings.current = M.current
+    M.saveSettings()
     return #evs
+end
+
+------------------------------------------------------------------ named macros
+
+-- A name safe as a file name: letters, digits, space, dash, underscore, dot.
+local function cleanName(name)
+    name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", ""):gsub("[/\\:%c]", "-")
+    return name
+end
+
+function M.listMacros()
+    local names = {}
+    if hs.fs.attributes(M.macDir) then
+        for f in hs.fs.dir(M.macDir) do
+            local n = f:match("^(.+)%.json$")
+            if n then names[#names + 1] = n end
+        end
+    end
+    table.sort(names, function(a, b) return a:lower() < b:lower() end)
+    return names
+end
+
+-- NEW MACRO: ask for a name, then record. The recording is saved under that
+-- name when ⌃⌥⌘R stops it, and becomes the one P plays.
+function M.newMacro()
+    if M.recording then M.stopRecording() end
+    if M.playing then M.stopPlaying() end
+    local button, text = hs.dialog.textPrompt("New macro", "Name it, then press ⌃⌥⌘R when you are done recording.",
+                                              "", "Record", "Cancel")
+    if button ~= "Record" then return false, "cancelled" end
+    local name = cleanName(text)
+    if name == "" then return false, "no name" end
+    M.pending = name
+    M.startRecording()
+    return true, "recording " .. name
+end
+
+-- LOAD MACRO: the named one becomes what P plays.
+function M.loadMacro(name)
+    local path = M.macDir .. "/" .. name .. ".json"
+    if not hs.fs.attributes(path) then return false, "no macro called " .. name end
+    local ok, rec = pcall(hs.json.read, path)
+    if not ok or type(rec) ~= "table" or type(rec.events) ~= "table" then return false, "cannot read " .. name end
+    M.events  = rec.events
+    M.current = name
+    M.settings.current = name
+    M.saveSettings()
+    return true, "loaded " .. name .. " (" .. #rec.events .. " events)"
 end
 
 function M.toggleRecording()
@@ -348,6 +408,7 @@ function M.start()
     if M.loaded then return true, "already running" end
     hs.fs.mkdir(M.dir)
     loadSettings()
+    if M.settings.current then M.loadMacro(M.settings.current) end   -- the one he had chosen
     M.hkRec  = hs.hotkey.bind(M.MODS, M.KEY_REC,  M.toggleRecording)
     M.hkPlay = hs.hotkey.bind(M.MODS, M.KEY_PLAY, M.togglePlay)
     M.loaded = true
@@ -369,6 +430,16 @@ end
 -- every check mark is the current value.
 function M.menu()
     local rows = {}
+    rows[#rows + 1] = { title = "Macro: " .. (M.current or (M.events and #M.events > 0 and "last recording") or "none"), disabled = true }
+    rows[#rows + 1] = { title = "New Macro…", fn = M.newMacro }
+    local names = M.listMacros()
+    local sub = {}
+    for _, n in ipairs(names) do
+        sub[#sub + 1] = { title = n, checked = (M.current == n), fn = function() M.loadMacro(n) end }
+    end
+    if #sub == 0 then sub[1] = { title = "(none yet)", disabled = true } end
+    rows[#rows + 1] = { title = "Load Macro", menu = sub }
+    rows[#rows + 1] = { title = "-" }
     rows[#rows + 1] = { title = "Speed", disabled = true }
     for _, v in ipairs(M.SPEEDS) do
         rows[#rows + 1] = { title = "  " .. tostring(v) .. "x", checked = (M.settings.speed == v),
@@ -388,7 +459,7 @@ function M.menu()
     local n = (M.events and #M.events) or 0
     rows[#rows + 1] = { title = "Record   ⌃⌥⌘R", fn = M.toggleRecording }
     rows[#rows + 1] = { title = "Play   ⌃⌥⌘P", fn = M.togglePlay, disabled = (n == 0 and not hs.fs.attributes(M.file)) }
-    rows[#rows + 1] = { title = "Open the recordings folder", fn = function() hs.execute("open " .. M.recDir) end }
+    rows[#rows + 1] = { title = "Open the macros folder", fn = function() hs.fs.mkdir(M.macDir); hs.execute("open " .. M.macDir) end }
     return rows
 end
 

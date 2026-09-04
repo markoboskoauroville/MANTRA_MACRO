@@ -93,5 +93,19 @@ eq(p[2].at, 0.5, "no clicks: speed alone")
 eq(#M.schedule({}, {}), 0, "empty recording")
 eq(#M.schedule(nil, {}), 0, "nil recording")
 
+-- named macros: the menu offers New and Load, and an empty folder lists none
+local names = M.listMacros()
+eq(#names, 0, "no macros in an empty folder")
+local rows = M.menu()
+local hasNew, hasLoad = false, false
+for _, r in ipairs(rows) do
+    if r.title == "New Macro…" and r.fn then hasNew = true end
+    if r.title == "Load Macro" and type(r.menu) == "table" and r.menu[1].title == "(none yet)" then hasLoad = true end
+end
+eq(hasNew and 1 or 0, 1, "menu has New Macro")
+eq(hasLoad and 1 or 0, 1, "menu has Load Macro with (none yet)")
+local ok, why = M.loadMacro("ghost")
+eq(ok and 1 or 0, 0, "loading a macro that is not there fails softly: " .. tostring(why))
+
 if fails > 0 then print(fails .. " FAILED"); os.exit(1) end
 print("ALL PASSED")

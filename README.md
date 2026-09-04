@@ -12,6 +12,15 @@ Control+Option+Command+R records, Control+Option+Command+P plays. When it's chec
 
 The David star in the menu bar turns red while recording and green while playing.
 
+## Named macros, in the same submenu
+
+- **New Macro…** asks for a name and starts recording; ⌃⌥⌘R stops it and saves it under that name.
+- **Load Macro** lists every saved macro; the ticked one is what ⌃⌥⌘P plays. The choice is
+  remembered across unticks.
+- A plain ⌃⌥⌘R with no name records the "last recording", also playable with P.
+
+Named macros live in `~/.mantra_macro/macros/<name>.json`.
+
 ## Settings, under the star menu as "Macro Recorder settings"
 
 - **Speed** 0.5x, 1x, 2x, 4x, 8x. Every gap divided by the speed.
