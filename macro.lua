@@ -228,7 +228,8 @@ end
 -- minutes are there so two macros in one hour do not fall on one name.
 function M.croName(t)
     t = t or os.time()
-    return os.date("%-d.%-m. %H.%M", t)
+    local d = os.date("*t", t)
+    return string.format("%d.%d. %02d.%02d", d.day, d.month, d.hour, d.min)
 end
 
 -- A name safe as a file name: letters, digits, space, dash, underscore, dot.
