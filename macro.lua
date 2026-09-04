@@ -101,6 +101,13 @@ local function badgeOff()
     if M.badge then M.badge:hide() end
 end
 
+-- THE STAR ITSELF turns red while recording and green while playing, his
+-- request 4.9.2026. The star menu offers STAR.tint; if it is not there (the
+-- module run on its own) the badge alone tells the state.
+local function star(colour)
+    if STAR and STAR.tint then pcall(STAR.tint, colour) end
+end
+
 ------------------------------------------------------------------ recording
 
 local et = hs.eventtap.event.types
@@ -177,12 +184,14 @@ function M.startRecording()
     M.tap:start()
     M.recording = true
     badge("REC", { red = 0.95, green = 0.2, blue = 0.2, alpha = 1 })
+    star("red")
 end
 
 function M.stopRecording()
     M.recording = false
     if M.tap then M.tap:stop(); M.tap = nil end
     badgeOff()
+    star(nil)
     local evs = M.events or {}
     -- the modifier keys he pressed to stop are not part of the recording;
     -- anything in the last moment that is one of our keys is dropped.
@@ -301,6 +310,7 @@ function M.play()
     local plan = M.schedule(evs, M.settings)
     M.playing = true
     badge("PLAY", { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 })
+    star("green")
     local start = now()
     local i = 1
     local function step()
@@ -323,6 +333,7 @@ function M.stopPlaying()
     M.playing = false
     if M.timer then M.timer:stop(); M.timer = nil end
     badgeOff()
+    star(nil)
 end
 
 function M.togglePlay()
@@ -349,6 +360,7 @@ function M.stop()
     if M.hkRec  then M.hkRec:delete();  M.hkRec  = nil end
     if M.hkPlay then M.hkPlay:delete(); M.hkPlay = nil end
     if M.badge  then M.badge:delete();  M.badge  = nil end
+    star(nil)
     M.loaded = false
     return true, "macro recorder stopped"
 end

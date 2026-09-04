@@ -10,6 +10,8 @@ Control+Option+Command+R records, Control+Option+Command+P plays. When it's chec
     ⌃⌥⌘R    start recording; press again to stop. A red dot with REC sits bottom right while it records.
     ⌃⌥⌘P    play the last recording; press again to stop. A green dot with PLAY sits bottom right.
 
+The David star in the menu bar turns red while recording and green while playing.
+
 ## Settings, under the star menu as "Macro Recorder settings"
 
 - **Speed** 0.5x, 1x, 2x, 4x, 8x. Every gap divided by the speed.
