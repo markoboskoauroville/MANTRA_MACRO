@@ -107,5 +107,9 @@ eq(hasLoad and 1 or 0, 1, "menu has Load Macro with (none yet)")
 local ok, why = M.loadMacro("ghost")
 eq(ok and 1 or 0, 0, "loading a macro that is not there fails softly: " .. tostring(why))
 
+-- the Croatian name: day.month. hour.minute, no year
+local name = M.croName(os.time({ year = 2026, month = 9, day = 4, hour = 18, min = 5 }))
+eq(name == "4.9. 18.05" and 1 or 0, 1, "croName is day.month. hour.minute: " .. name)
+
 if fails > 0 then print(fails .. " FAILED"); os.exit(1) end
 print("ALL PASSED")

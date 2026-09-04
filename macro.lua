@@ -208,7 +208,7 @@ function M.stopRecording()
     hs.fs.mkdir(M.dir); hs.fs.mkdir(M.recDir)
     local rec = { version = 1, recorded = os.date("%Y-%m-%d %H:%M:%S"), events = evs }
     pcall(hs.json.write, rec, M.file, false, true)
-    pcall(hs.json.write, rec, M.recDir .. "/" .. os.date("%Y%m%d-%H%M%S") .. ".json", false, true)
+    pcall(hs.json.write, rec, M.recDir .. "/" .. M.croName() .. ".json", false, true)
     if M.pending then
         hs.fs.mkdir(M.macDir)
         pcall(hs.json.write, rec, M.macDir .. "/" .. M.pending .. ".json", false, true)
@@ -222,6 +222,14 @@ function M.stopRecording()
 end
 
 ------------------------------------------------------------------ named macros
+
+-- THE NAME A MACRO GETS BY ITSELF, Croatian style, his request 4.9.2026: the
+-- day, the month, then the hour. No year, nothing else. "4.9. 18.52". The
+-- minutes are there so two macros in one hour do not fall on one name.
+function M.croName(t)
+    t = t or os.time()
+    return os.date("%-d.%-m. %H.%M", t)
+end
 
 -- A name safe as a file name: letters, digits, space, dash, underscore, dot.
 local function cleanName(name)
@@ -247,7 +255,7 @@ function M.newMacro()
     if M.recording then M.stopRecording() end
     if M.playing then M.stopPlaying() end
     local button, text = hs.dialog.textPrompt("New macro", "Name it, then press ⌃⌥⌘R when you are done recording.",
-                                              "", "Record", "Cancel")
+                                              M.croName(), "Record", "Cancel")
     if button ~= "Record" then return false, "cancelled" end
     local name = cleanName(text)
     if name == "" then return false, "no name" end

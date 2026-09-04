@@ -15,6 +15,7 @@ The David star in the menu bar turns red while recording and green while playing
 ## Named macros, in the same submenu
 
 - **New Macro…** asks for a name and starts recording; ⌃⌥⌘R stops it and saves it under that name.
+  The name offered is Croatian style, day.month. hour.minute, like `4.9. 18.52`; type over it to rename.
 - **Load Macro** lists every saved macro; the ticked one is what ⌃⌥⌘P plays. The choice is
   remembered across unticks.
 - A plain ⌃⌥⌘R with no name records the "last recording", also playable with P.
