@@ -54,7 +54,7 @@ Sleep, so 2x runs the macro twice as fast.
 
 ## Pictures on the screen
 
-Cut a picture of the button on the settings page ("Snap a picture", then drag over it on the
+Cut a picture of the button on the settings page ("Snap button", then drag over it on the
 screen). It is saved under `~/.mantra_macro/images/`. Then:
 
 - `ClickImage "button.png"` finds the picture on the screen and clicks its centre. Returns 1
@@ -212,7 +212,7 @@ MsgBox o["name"]
 - `WinActivate "Google Chrome"` brings the app to the front. `WinExist("Google Chrome")` is 1
   when it is open. `WinWaitActive "Google Chrome", , 10` brings it forward and waits up to ten seconds.
 - `Run "https://example.com"` opens an address; `Run "Safari"` opens an app; `Run "/path/file"` a file.
-- `MsgBox "text"` and `ToolTip "text"` show a line bottom right of the screen, never in the middle.
+- `MsgBox "text"` and `ToolTip "text"` show a line at the bottom middle of the screen, for a moment.
 - `FileExist("/path")`, `FileRead("/path")`, `FileAppend "text", "/path"`.
 - `ExitApp` stops the macro.
 
