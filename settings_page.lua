@@ -19,6 +19,10 @@
 -- renamed in the Finder shows on the next poll, and a slot that still points
 -- at the old name says "missing" instead of pretending.
 --
+-- ALSO SERVED HERE: /editor (the script editor, editor_page.lua), /docs (the
+-- language), /script and /commands (what the editor reads), /images and
+-- /image (the pictures ClickImage looks for).
+--
 -- This file is a function: macro.lua calls it with itself on start and gets
 -- back the page object; stop() closes the window and the server.
 
@@ -27,6 +31,9 @@ return function(M)
 local P = {}
 local PORT  = 8829
 local SLOTS = M.SLOTS
+local SCRIPT = M.SCRIPT
+local HERE = debug.getinfo(1, "S").source:match("^@(.*/)") or ""
+local EDITOR = dofile(HERE .. "editor_page.lua")
 P.port = PORT
 
 ------------------------------------------------------------------ the state
@@ -48,14 +55,18 @@ local function state()
         note = { text = M.note.text, at = M.note.at }
     end
     local url, localUrl = P.url()
+    local lastError = false
+    if M.lastError then lastError = { name = M.lastError.name or "", line = M.lastError.line or 0, msg = M.lastError.msg or "", at = M.lastError.at or 0 } end
     return {
         build = P.build,
+        lastError = lastError,
+        images = M.listImages(),
         recording = M.recording, playing = M.playing,
         capture = M.capture or "",
         pending = M.pending or "",
         current = M.current or "",
-        inPlayer = (M.events and #M.events) or 0,
-        lastExists = hs.fs.attributes(M.file) ~= nil,
+        inPlayer = (M.text and #M.text > 0) and 1 or 0,
+        lastExists = hs.fs.attributes(M.lastFile) ~= nil,
         note = note,
         speed = M.settings.speed, ignoreTravel = M.settings.ignoreTravel and true or false,
         clickDelay = M.settings.clickDelay,
@@ -85,7 +96,7 @@ local GREY = { white = 0.6, alpha = 1 }
 local function act(d)
     local a = d.a
     local later = function(fn) M.later = hs.timer.doAfter(0.05, function() pcall(fn) end) end
-    local ok, err = true, nil
+    local ok, err, extra = true, nil, nil
     if a == "record" then later(M.toggleRecording)
     elseif a == "play" then later(M.togglePlay)
     elseif a == "stop" then M.stopAll()
@@ -112,9 +123,32 @@ local function act(d)
     elseif a == "lan" then P.toggleLan()
     elseif a == "folder" then M.openFolder()
     elseif a == "big" then P.big()
+    -- the editor and the pictures
+    elseif a == "savescript" then
+        local okS, errS, warning, line = M.saveScript(d.name, d.text)
+        ok, err = okS, errS
+        if warning then extra = { warning = warning, line = line } end
+    elseif a == "check" then
+        local okC, errC, line = M.checkScript(d.text)
+        ok, err = okC, errC
+        if line then extra = { line = line } end
+        if not okC then return ok, err, extra end        -- a check is not spoken aloud
+    elseif a == "runscript" then
+        local okR, errR, line = M.runNamed(d.name)
+        ok, err = okR, errR
+        if line then extra = { line = line } end
+    elseif a == "newscript" then
+        local okN, nameOrErr = M.newScript(d.name)
+        ok = okN
+        if okN then extra = { name = nameOrErr } else err = nameOrErr end
+    elseif a == "edit" then P.editor(d.name)
+    elseif a == "docs" then P.docs()
+    elseif a == "snap" then ok, err = M.snap(d.name or "")
+    elseif a == "findtest" then later(function() M.findTest(d.name) end)
+    elseif a == "trashimage" then ok, err = M.trashImage(d.name)
     else ok, err = false, "unknown action " .. tostring(a) end
     if not ok and err then M.say(err, GREY, 2.5) end
-    return ok, err
+    return ok, err, extra
 end
 
 ------------------------------------------------------------------ the page
@@ -238,6 +272,12 @@ local PAGE = [==[
   .toggle .sw.on::after{left:21px;background:#111}
   .path{font:12px ui-monospace,Menlo,monospace;color:var(--dim);word-break:break-all}
   .row2{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  a.btn{font:inherit;color:var(--sand);background:var(--slate);border-radius:8px;padding:8px 12px;text-decoration:none;display:inline-block}
+  .pic{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+  .pic:first-of-type{border-top:0}
+  .pic img{max-width:120px;max-height:48px;border-radius:4px;background:#fff;flex:0 0 auto}
+  .pic .name{flex:1;min-width:0;font:13px ui-monospace,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .macro .kind{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
 
   /* THE MINI VIEW: the same page, tighter, in the small window. Nothing is
      dropped; a small view that hides half the rows is a second app to learn. */
@@ -264,9 +304,10 @@ local PAGE = [==[
   </div>
   <div class="newrow">
     <input type="text" id="newName" placeholder="name for a new macro">
-    <button id="kNew">New macro</button>
+    <button id="kNew">Record new</button>
+    <button id="kWrite">Write new</button>
   </div>
-  <div class="hint" id="newHint">Type a name, press New macro, do the thing, then press the record key to stop. It lands in the first free slot.</div>
+  <div class="hint" id="newHint">Record new: do the thing, then press the record key to stop. Write new: an empty script opens in the editor. Either lands in the first free slot.</div>
 </section>
 
 <section id="slotsSec">
@@ -277,8 +318,19 @@ local PAGE = [==[
 
 <section id="macrosSec">
   <h2>Macros in the folder</h2>
-  <div class="hint">Click a name to rename it. Tick a digit to put the macro in that slot. Any file you drop or rename in the folder shows here.</div>
+  <div class="hint">Click a name to rename it. Tick a digit to put the macro in that slot. Edit opens the script. Any file you drop or rename in the folder shows here.</div>
   <div id="macros"></div>
+</section>
+
+<section id="imagesSec">
+  <h2>Pictures</h2>
+  <div class="hint">A picture of a button, cut from the screen. A script finds it with ClickImage "name.png" wherever it is. Snap: drag over the button on the screen.</div>
+  <div class="newrow">
+    <input type="text" id="snapName" placeholder="name for the picture">
+    <button id="kSnap">Snap a picture</button>
+  </div>
+  <div id="images"></div>
+  <div class="row2"><a class="btn" id="kDocs" href="/docs" target="_blank">The language, documentation</a></div>
 </section>
 
 <section id="keysSec">
@@ -294,7 +346,7 @@ local PAGE = [==[
   <h2>Playback</h2>
   <div class="hint">Speed</div><div class="chips" id="speeds"></div>
   <div class="hint">Delay between clicks, one rhythm</div><div class="chips" id="delays"></div>
-  <div class="toggle"><div>Ignore mouse travel between clicks</div><div class="sw" id="swIgnore"></div></div>
+  <div class="hint">A recording keeps the clicks, keys, drags and scrolls with the time between them; the mouse travel between clicks is left out.</div>
 </section>
 
 <section id="winSec">
@@ -327,6 +379,7 @@ function drawLcd(s){
   else if (s.playing) { cls += " play"; text = "PLAY " + (s.current || "last recording"); }
   else if (s.capture) { text = "press the keys on the Mac now. Esc keeps the old key"; }
   else if (fresh) { text = s.note.text; }
+  else if (s.lastError && (Date.now()/1000 - s.lastError.at) < 20) { text = s.lastError.name + ": " + s.lastError.msg; }
   else if (s.current) { text = "in the player: " + s.current + " · " + s.inPlayer + " events"; }
   else if (s.inPlayer > 0 || s.lastExists) { text = "in the player: last recording"; }
   else { text = "nothing in the player. Record, or load a slot"; }
@@ -373,9 +426,11 @@ function drawMacros(s){
     h += '<div class="macro" data-i="' + i + '"><div class="top">'
       + '<div class="name" data-a="edit" data-i="' + i + '" title="click to rename">' + esc(m.name) + '</div>'
       + (m.inPlayer ? '<span class="tag">in the player</span>' : '')
+      + '<span class="kind">' + (m.kind === 'script' ? 'script' : 'recording') + '</span>'
+      + '<a class="btn icon" href="/editor?name=' + encodeURIComponent(m.name) + '&v=' + s.build + '" title="open in the script editor">Edit</a>'
       + '<button class="icon danger" data-a="trash" data-i="' + i + '" title="move to the trash folder">' + (armed[m.name] ? 'sure?' : '🗑') + '</button>'
       + '</div>'
-      + '<div class="meta' + (m.bad ? ' bad' : '') + '">' + (m.bad ? 'cannot be read' : (m.events + ' events' + (m.recorded ? ' · ' + esc(m.recorded) : ''))) + '</div>'
+      + '<div class="meta' + (m.bad ? ' bad' : '') + '">' + (m.bad ? 'cannot be read' : ((m.kind === 'script' ? m.lines + ' lines' : m.events + ' events') + (m.recorded ? ' · recorded ' + esc(m.recorded) : ''))) + '</div>'
       + '<div class="checks"><span class="lbl">slot</span>';
     s.slots.forEach(function(r){
       var on = m.slot === r.slot;
@@ -410,6 +465,19 @@ function drawKeys(s){
   modChips("runMods", s.runMods, "runMods");
 }
 
+function drawImages(s){
+  var box = document.getElementById("images");
+  if (!s.images.length) { box.innerHTML = '<div class="hint">No pictures yet.</div>'; return; }
+  var h = "";
+  s.images.forEach(function(n){
+    h += '<div class="pic"><img src="/image?name=' + encodeURIComponent(n) + '&v=' + s.build + '" alt="">'
+      + '<div class="name" title="' + esc(n) + '">' + esc(n) + '</div>'
+      + '<button class="icon" data-a="findtest" data-name="' + esc(n) + '" title="find it on the screen now and move the mouse there">find</button>'
+      + '<button class="icon danger" data-a="trashimage" data-name="' + esc(n) + '" title="move to the trash folder">' + (armed["img:" + n] ? 'sure?' : '🗑') + '</button></div>';
+  });
+  box.innerHTML = h;
+}
+
 function drawPlayback(s){
   var h = "";
   s.speeds.forEach(function(v){ h += '<span class="chip' + (v === s.speed ? ' on' : '') + '" data-a="speed" data-v="' + v + '">' + v + 'x</span>'; });
@@ -417,7 +485,6 @@ function drawPlayback(s){
   h = "";
   s.delays.forEach(function(v){ h += '<span class="chip' + (v === s.clickDelay ? ' on' : '') + '" data-a="delay" data-v="' + v + '">' + (v === 0 ? 'as recorded' : v + ' s') + '</span>'; });
   document.getElementById("delays").innerHTML = h;
-  document.getElementById("swIgnore").className = "sw" + (s.ignoreTravel ? " on" : "");
   document.getElementById("swAuto").className = "sw" + (s.autoSmall ? " on" : "");
   document.getElementById("swTop").className = "sw" + (s.onTop ? " on" : "");
   document.getElementById("swLan").className = "sw" + (s.lan ? " on" : "");
@@ -428,7 +495,7 @@ function drawPlayback(s){
 function draw(s){
   drawLcd(s);
   if (editing !== null) return;      // a rename in progress is not redrawn under the cursor
-  drawSlots(s); drawMacros(s); drawKeys(s); drawPlayback(s);
+  drawSlots(s); drawMacros(s); drawImages(s); drawKeys(s); drawPlayback(s);
 }
 
 // BUILD CHECK: a tab from yesterday running yesterday's javascript reloads itself.
@@ -486,6 +553,13 @@ document.body.addEventListener("click", function(e){
     return;
   }
   if (a === "capture") { send({a:"capture", id:t.dataset.id}); return; }
+  if (a === "findtest") { send({a:"findtest", name:t.dataset.name}); return; }
+  if (a === "trashimage") {
+    var key = "img:" + t.dataset.name;
+    if (armed[key]) { delete armed[key]; send({a:"trashimage", name:t.dataset.name}); }
+    else { armed[key] = true; t.textContent = "sure?"; setTimeout(function(){ delete armed[key]; lastTxt = ""; poll(); }, 3000); }
+    return;
+  }
   if (a === "speed" || a === "delay") { send({a:a, v:+t.dataset.v}); return; }
   if (a === "runslot" || a === "up" || a === "down" || a === "clear") { send({a:a, slot:t.dataset.slot}); return; }
 });
@@ -497,10 +571,20 @@ document.getElementById("kNew").onclick = function(){
   var inp = document.getElementById("newName");
   send({a:"new", name: inp.value}); inp.value = ""; delete inp.dataset.touched;
 };
+document.getElementById("kWrite").onclick = function(){
+  var inp = document.getElementById("newName");
+  fetch("/do", {method:"POST", body: JSON.stringify({a:"newscript", name: inp.value}), cache:"no-store"}).then(function(r){ return r.json(); }).then(function(d){
+    if (d.ok && d.name) { inp.value = ""; location.href = "/editor?name=" + encodeURIComponent(d.name) + "&v=" + (S ? S.build : 0); }
+    else { lastTxt = ""; poll(); }
+  }).catch(function(){});
+};
+document.getElementById("kSnap").onclick = function(){
+  var inp = document.getElementById("snapName");
+  send({a:"snap", name: inp.value}); inp.value = "";
+};
 document.getElementById("newName").oninput = function(){ this.dataset.touched = "1"; };
 document.getElementById("newName").onkeydown = function(e){ if (e.key === "Enter") document.getElementById("kNew").onclick(); };
 document.getElementById("kReset").onclick = function(){ send({a:"resetkeys"}); };
-document.getElementById("swIgnore").onclick = function(){ send({a:"ignore"}); };
 document.getElementById("swAuto").onclick = function(){ send({a:"autosmall"}); };
 document.getElementById("swTop").onclick = function(){ send({a:"ontop"}); };
 document.getElementById("swLan").onclick = function(){ send({a:"lan"}); };
@@ -557,7 +641,58 @@ local function reply(body, code, ctype)
                                 ["Cache-Control"] = "no-store" }
 end
 
+local function query(path, key)
+    local v = path:match("[?&]" .. key .. "=([^&]*)")
+    if not v then return nil end
+    v = v:gsub("+", " "):gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end)
+    return v
+end
+
+local function readDocs()
+    local f = io.open(HERE .. "docs/SCRIPT.md", "r")
+    if not f then return "# MANTRA SCRIPT\n\ndocs/SCRIPT.md is missing." end
+    local t = f:read("a"); f:close()
+    return t
+end
+
+local function commandsJson()
+    local cmds = {}
+    for _, c in ipairs(SCRIPT.COMMANDS) do
+        local isFunction = c.sig:match("^" .. c.name .. "%(") ~= nil
+        cmds[#cmds + 1] = { name = c.name, sig = c.sig, doc = c.doc, isFunction = isFunction, snippet = c.sig }
+    end
+    return { commands = cmds, variables = SCRIPT.VARIABLES, keys = SCRIPT.KEYNAMES, images = M.listImages() }
+end
+
 local function handle(method, path, headers, body)
+    if path:sub(1, 7) == "/editor" then
+        return reply(EDITOR.EDITOR, 200, "text/html; charset=utf-8")
+    end
+    if path:sub(1, 5) == "/docs" then
+        return reply(EDITOR.renderDocs(readDocs(), "MANTRA SCRIPT, the language"), 200, "text/html; charset=utf-8")
+    end
+    if path:sub(1, 7) == "/script" then
+        local name = query(path, "name") or ""
+        local text, kind = M.readScript(name)
+        local okE, txt = pcall(hs.json.encode, text and { name = name, text = text, kind = kind } or { name = name, error = kind })
+        return reply(okE and txt or '{"error":"cannot encode"}')
+    end
+    if path:sub(1, 9) == "/commands" then
+        local okE, txt = pcall(hs.json.encode, commandsJson())
+        return reply(okE and txt or '{"commands":[],"variables":[],"keys":[],"images":[]}')
+    end
+    if path:sub(1, 7) == "/images" then
+        local okE, txt = pcall(hs.json.encode, { images = M.listImages() })
+        return reply(okE and txt or '{"images":[]}')
+    end
+    if path:sub(1, 6) == "/image" then
+        local name = query(path, "name") or ""
+        if name:find("/", 1, true) or name:find("..", 1, true) then return reply("no", 404, "text/plain") end
+        local f = io.open(M.imgDir .. "/" .. name, "rb")
+        if not f then return reply("no such picture", 404, "text/plain") end
+        local bytes = f:read("a"); f:close()
+        return bytes, 200, { ["Content-Type"] = name:match("%.png$") and "image/png" or "image/jpeg", ["Cache-Control"] = "no-store" }
+    end
     if path:sub(1, 6) == "/state" then
         local ok, txt = pcall(hs.json.encode, state())
         if not ok then return reply('{"error":' .. string.format("%q", tostring(txt)) .. '}', 500) end
@@ -570,8 +705,12 @@ local function handle(method, path, headers, body)
             if ok and type(t) == "table" then d = t end
         end
         if not d.a then d.a = path:match("[?&]a=([%w]+)") end
-        local ok, err = act(d)
-        return reply(ok and '{"ok":true}' or ('{"ok":false,"error":' .. string.format("%q", tostring(err)) .. '}'))
+        local ok, err, extra = act(d)
+        local out = { ok = ok and true or false }
+        if err and not ok then out.error = tostring(err) end
+        for k, v in pairs(extra or {}) do out[k] = v end
+        local okE, txt = pcall(hs.json.encode, out)
+        return reply(okE and txt or '{"ok":false,"error":"cannot encode the reply"}')
     end
     if path:sub(1, 7) == "/health" then return reply("ok", 200, "text/plain") end
     return reply(PAGE, 200, "text/html; charset=utf-8")
@@ -667,6 +806,16 @@ end
 function P.big()
     local _, localUrl = P.url()
     hs.urlevent.openURL(localUrl)
+end
+
+-- THE EDITOR opens in the browser: a script wants room and a real keyboard.
+function P.editor(name)
+    local enc = (name or ""):gsub("[^%w%-%._~ ]", function(c) return string.format("%%%02X", c:byte()) end):gsub(" ", "%%20")
+    hs.urlevent.openURL("http://127.0.0.1:" .. PORT .. "/editor?name=" .. enc .. "&v=" .. P.build)
+end
+
+function P.docs()
+    hs.urlevent.openURL("http://127.0.0.1:" .. PORT .. "/docs?v=" .. P.build)
 end
 
 function P.toggleAutoSmall()

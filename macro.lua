@@ -18,17 +18,25 @@
 -- the same order. It is started by the star menu and by nothing else, so it
 -- listens only while its box is ticked.
 --
--- THE FILES, all under ~/.mantra_macro:
---   settings.json          speed, ignoreTravel, clickDelay, the keys, the slots
---   macros/<name>.json     the named macros. Any name; rename on disk or here.
---   last.json              the plain last recording, what Play plays with no macro chosen
---   recordings/<date>.json every recording ever made, kept
---   trash/<name>.json      a macro removed from the page goes here, never deleted
+-- A MACRO IS A SCRIPT, since 5.9.2026: AutoHotkey v2 syntax, read by
+-- script.lua. A recording is written down as one (Click x, y · Sleep ms ·
+-- Send "text") the moment it stops, so every macro can be read and edited.
 --
--- THE THREE PARTS of the code: this file (record, play, keys, slots, the star's
--- submenu), slots.lua (the ten slots, pure Lua, tested) and settings_page.lua
--- (the web page, its server, the small window). The page is loaded on start
--- and let go on stop, like everything else.
+-- THE FILES, all under ~/.mantra_macro:
+--   settings.json          speed, clickDelay, the keys, the slots, the window
+--   macros/<name>.ahk      the macros. Any name; rename on disk or on the page.
+--   macros/<name>.json     a recording from before the language; still plays
+--   images/<name>.png      the pictures ClickImage looks for on the screen
+--   last.ahk               the plain last recording, what Play plays with no macro chosen
+--   recordings/<date>.json the raw events of every recording ever made, kept
+--   trash/                 whatever the page's bin removed, never deleted
+--
+-- THE PARTS of the code: this file (record, the host the language runs on,
+-- keys, slots, the star's submenu), slots.lua (the ten slots, pure Lua),
+-- script.lua (the language, pure Lua), settings_page.lua (the page, its
+-- server, the small window), editor_page.lua (the script editor and the
+-- documentation) and find.py (the eye: a picture found on a screen shot).
+-- The page is loaded on start and let go on stop, like everything else.
 --
 -- THE STATUS goes small, bottom right of the screen, never mid screen: a red
 -- dot with REC while recording, a green one with PLAY while playing, gone when
@@ -46,8 +54,20 @@ M.macDir   = M.dir .. "/macros"        -- the named ones
 M.trashDir = M.dir .. "/trash"
 M.setFile  = M.dir .. "/settings.json"
 
-local SLOTS = dofile(HERE .. "slots.lua")
-M.SLOTS = SLOTS
+M.imgDir   = M.dir .. "/images"       -- the pictures ClickImage looks for
+M.tmpDir   = M.dir .. "/tmp"          -- screen shots taken while searching
+M.lastFile = M.dir .. "/last.ahk"     -- the plain last recording, as a script
+
+local SLOTS  = dofile(HERE .. "slots.lua")
+local SCRIPT = dofile(HERE .. "script.lua")
+M.SLOTS, M.SCRIPT = SLOTS, SCRIPT
+M.findPy = HERE .. "find.py"
+local PYTHON = (function()
+    local p = HOME .. "/.pyenv/versions/3.10.14/bin/python3"
+    return hs.fs.attributes(p) and p or "python3"
+end)()
+M.text = nil          -- the script in the player
+M.lastError = nil     -- { name=, line=, msg=, at= } from the last run that failed
 
 ------------------------------------------------------------------ the keys
 
@@ -298,11 +318,15 @@ function M.stopRecording()
     M.events = evs
     hs.fs.mkdir(M.dir); hs.fs.mkdir(M.recDir)
     local rec = { version = 1, recorded = os.date("%Y-%m-%d %H:%M:%S"), events = evs }
+    -- the raw events are kept by date, always; the macro itself is a script
     pcall(hs.json.write, rec, M.file, false, true)
     pcall(hs.json.write, rec, M.recDir .. "/" .. M.croName() .. ".json", false, true)
+    local title = (M.pending or "last recording") .. ", recorded " .. rec.recorded
+    local text = SCRIPT.fromEvents(evs, M.keyNames(), { title, "Edit freely: Click x, y  ·  Send \"text\"  ·  Sleep ms  ·  ClickImage \"button.png\"" })
+    local lf = io.open(M.lastFile, "w"); if lf then lf:write(text); lf:close() end
+    M.text = text
     if M.pending then
-        hs.fs.mkdir(M.macDir)
-        pcall(hs.json.write, rec, M.macDir .. "/" .. M.pending .. ".json", false, true)
+        M.writeScript(M.pending, text)
         M.current, M.pending = M.pending, nil
         -- a new macro lands in the first free slot by itself
         local slot = SLOTS.autoPlace(M.settings.slots, M.current)
@@ -337,55 +361,151 @@ function M.cleanName(name)
     return name
 end
 
-local function pathOf(name) return M.macDir .. "/" .. name .. ".json" end
+-- A MACRO IS A SCRIPT, <name>.ahk in the folder. A <name>.json from before
+-- the language (a recording) is still listed and still plays: it is turned
+-- into a script when it is read, and becomes one on disk when it is saved
+-- from the editor.
+local function ahkOf(name)  return M.macDir .. "/" .. name .. ".ahk" end
+local function jsonOf(name) return M.macDir .. "/" .. name .. ".json" end
+local function has(p) return p ~= nil and hs.fs.attributes(p) ~= nil end
+
+function M.kindOf(name)
+    if not name or name == "" then return nil end
+    if has(ahkOf(name)) then return "script" end
+    if has(jsonOf(name)) then return "recording" end
+    return nil
+end
+
+function M.exists(name) return M.kindOf(name) ~= nil end
 
 function M.listMacros()
-    local names = {}
-    if hs.fs.attributes(M.macDir) then
+    local set, names = {}, {}
+    if has(M.macDir) then
         for f in hs.fs.dir(M.macDir) do
-            local n = f:match("^(.+)%.json$")
-            if n and f:sub(1, 1) ~= "." then names[#names + 1] = n end
+            local n = f:match("^(.+)%.ahk$") or f:match("^(.+)%.json$")
+            if n and f:sub(1, 1) ~= "." and not set[n] then set[n] = true; names[#names + 1] = n end
         end
     end
     table.sort(names, function(a, b) return a:lower() < b:lower() end)
     return names
 end
 
--- EVERYTHING THE PAGE NEEDS TO KNOW ABOUT EACH MACRO: name, how many events,
--- when it was recorded, which slot. Read from disk each time it is asked for,
--- so a rename or a new file in the folder shows on the next poll; the event
--- count is cached by the file's modification time so a big macro is not
--- parsed once a second.
+-- the key code -> name table the language needs to write a recording down
+M.keyNamesCache = nil
+function M.keyNames()
+    if M.keyNamesCache then return M.keyNamesCache end
+    local out = {}
+    for k, v in pairs(hs.keycodes.map or {}) do
+        if type(k) == "number" and type(v) == "string" then out[k] = v end
+        if type(k) == "string" and type(v) == "number" and out[v] == nil then out[v] = k end
+    end
+    M.keyNamesCache = out
+    return out
+end
+
+-- THE TEXT OF A MACRO: a script as written, a recording turned into one.
+-- Returns text, kind; or nil, reason.
+function M.readScript(name)
+    local kind = M.kindOf(name)
+    if kind == "script" then
+        local f = io.open(ahkOf(name), "r")
+        if not f then return nil, "cannot read " .. name end
+        local t = f:read("a"); f:close()
+        return t, "script"
+    elseif kind == "recording" then
+        local ok, rec = pcall(hs.json.read, jsonOf(name))
+        if not ok or type(rec) ~= "table" or type(rec.events) ~= "table" then return nil, "cannot read " .. name end
+        return SCRIPT.fromEvents(rec.events, M.keyNames(), { name .. ", recorded " .. tostring(rec.recorded or "") }), "recording"
+    end
+    return nil, "no macro called " .. tostring(name)
+end
+
+function M.writeScript(name, text)
+    hs.fs.mkdir(M.dir); hs.fs.mkdir(M.macDir)
+    local f, err = io.open(ahkOf(name), "w")
+    if not f then return false, "cannot write " .. name .. ": " .. tostring(err) end
+    f:write(text or ""); f:close()
+    -- a recording of the same name is superseded: it goes to the trash folder, never deleted
+    if has(jsonOf(name)) then
+        hs.fs.mkdir(M.trashDir)
+        os.rename(jsonOf(name), M.trashDir .. "/" .. name .. " (recording).json")
+    end
+    M.infoCache = nil
+    return true
+end
+
+-- SAVE from the editor. The text is kept whatever it says: a half-written
+-- script is never lost. A parse error comes back as a warning with its line.
+function M.saveScript(name, text)
+    name = M.cleanName(name)
+    if name == "" then return false, "no name" end
+    local ok, err = M.writeScript(name, text)
+    if not ok then return false, err end
+    if M.current == name then M.text = text end
+    local prog, perr = SCRIPT.parse(text or "")
+    if not prog then return true, nil, "saved, but line " .. perr.line .. ": " .. perr.msg, perr.line end
+    return true
+end
+
+function M.checkScript(text)
+    local prog, perr = SCRIPT.parse(text or "")
+    if prog then return true end
+    return false, "line " .. perr.line .. ": " .. perr.msg, perr.line
+end
+
+-- A NEW, EMPTY SCRIPT to write in the editor. It takes the first free slot.
+function M.newScript(name)
+    name = M.cleanName(name)
+    if name == "" then name = M.croName() end
+    if M.exists(name) then return false, "there is already a macro called " .. name end
+    local ok, err = M.writeScript(name, "; " .. name .. "\n; Click x, y  ·  Send \"text\"  ·  Sleep ms  ·  ClickImage \"button.png\"\n\n")
+    if not ok then return false, err end
+    SLOTS.autoPlace(M.settings.slots, name)
+    M.saveSettings()
+    return true, name
+end
+
+-- EVERYTHING THE PAGE NEEDS TO KNOW ABOUT EACH MACRO. Read from disk each
+-- time it is asked for, so a rename or a new file in the folder shows on the
+-- next poll; the counts are cached by the file's modification time.
 M.infoCache = {}
 function M.macroInfo()
     local out, cache = {}, M.infoCache or {}
     local fresh = {}
     for _, n in ipairs(M.listMacros()) do
-        local p = pathOf(n)
+        local kind = M.kindOf(n)
+        local p = kind == "script" and ahkOf(n) or jsonOf(n)
         local a = hs.fs.attributes(p)
         local mtime = a and a.modification or 0
         local c = cache[n]
-        if not c or c.mtime ~= mtime then
-            c = { mtime = mtime, events = 0, recorded = "", bad = false }
-            local ok, rec = pcall(hs.json.read, p)
-            if ok and type(rec) == "table" and type(rec.events) == "table" then
-                c.events = #rec.events
-                c.recorded = tostring(rec.recorded or "")
+        if not c or c.mtime ~= mtime or c.kind ~= kind then
+            c = { mtime = mtime, kind = kind, lines = 0, events = 0, recorded = "", bad = false }
+            if kind == "script" then
+                local f = io.open(p, "r")
+                if f then
+                    local first
+                    for line in f:lines() do
+                        if not line:match("^%s*$") and not line:match("^%s*;") then c.lines = c.lines + 1 end
+                        if not first and line:match("^%s*;") then first = line:gsub("^%s*;%s*", "") end
+                    end
+                    f:close()
+                    c.recorded = first and first:match("recorded (.+)$") or ""
+                else c.bad = true end
             else
-                c.bad = true
+                local ok, rec = pcall(hs.json.read, p)
+                if ok and type(rec) == "table" and type(rec.events) == "table" then
+                    c.events = #rec.events
+                    c.recorded = tostring(rec.recorded or "")
+                else c.bad = true end
             end
         end
         fresh[n] = c
-        out[#out + 1] = { name = n, events = c.events, recorded = c.recorded, bad = c.bad,
+        out[#out + 1] = { name = n, kind = kind, lines = c.lines, events = c.events, recorded = c.recorded, bad = c.bad,
                           slot = SLOTS.slotOf(M.settings.slots, n),
                           inPlayer = (M.current == n) }
     end
     M.infoCache = fresh
     return out
-end
-
-function M.exists(name)
-    return name ~= nil and name ~= "" and hs.fs.attributes(pathOf(name)) ~= nil
 end
 
 -- NEW MACRO from the star menu: ask for a name in a box, then record. The
@@ -418,22 +538,17 @@ end
 
 -- LOAD MACRO: the named one goes into the player, what the play key plays.
 function M.loadMacro(name, quiet)
-    local path = pathOf(name)
-    if not hs.fs.attributes(path) then
-        if not quiet then M.say("no macro called " .. name, GREY, 2) end
-        return false, "no macro called " .. name
+    local text, kind = M.readScript(name)
+    if not text then
+        if not quiet then M.say(kind, GREY, 2) end
+        return false, kind
     end
-    local ok, rec = pcall(hs.json.read, path)
-    if not ok or type(rec) ~= "table" or type(rec.events) ~= "table" then
-        if not quiet then M.say("cannot read " .. name, GREY, 2) end
-        return false, "cannot read " .. name
-    end
-    M.events  = rec.events
+    M.text    = text
     M.current = name
     M.settings.current = name
     M.saveSettings()
     if not quiet then M.say("in the player: " .. name, GREY, 1.4) end
-    return true, "loaded " .. name .. " (" .. #rec.events .. " events)"
+    return true, "loaded " .. name
 end
 
 -- RENAME, from the page. The file moves on disk, the slot follows, the player
@@ -444,8 +559,13 @@ function M.renameMacro(old, new)
     if new == old then return true, "same name" end
     if not M.exists(old) then return false, "no macro called " .. tostring(old) end
     if M.exists(new) then return false, "there is already a macro called " .. new end
-    local ok, err = os.rename(pathOf(old), pathOf(new))
-    if not ok then return false, "could not rename: " .. tostring(err) end
+    for _, ext in ipairs({ ".ahk", ".json" }) do
+        local from = M.macDir .. "/" .. old .. ext
+        if has(from) then
+            local ok, err = os.rename(from, M.macDir .. "/" .. new .. ext)
+            if not ok then return false, "could not rename: " .. tostring(err) end
+        end
+    end
     SLOTS.rename(M.settings.slots, old, new)
     if M.current == old then M.current = new; M.settings.current = new end
     M.saveSettings()
@@ -459,12 +579,17 @@ end
 function M.trashMacro(name)
     if not M.exists(name) then return false, "no macro called " .. tostring(name) end
     hs.fs.mkdir(M.trashDir)
-    local dest = M.trashDir .. "/" .. name .. ".json"
-    if hs.fs.attributes(dest) then dest = M.trashDir .. "/" .. name .. " " .. os.date("%Y%m%d-%H%M%S") .. ".json" end
-    local ok, err = os.rename(pathOf(name), dest)
-    if not ok then return false, "could not move: " .. tostring(err) end
+    for _, ext in ipairs({ ".ahk", ".json" }) do
+        local from = M.macDir .. "/" .. name .. ext
+        if has(from) then
+            local dest = M.trashDir .. "/" .. name .. ext
+            if has(dest) then dest = M.trashDir .. "/" .. name .. " " .. os.date("%Y%m%d-%H%M%S") .. ext end
+            local ok, err = os.rename(from, dest)
+            if not ok then return false, "could not move: " .. tostring(err) end
+        end
+    end
     SLOTS.remove(M.settings.slots, name)
-    if M.current == name then M.current = nil; M.settings.current = nil; M.events = nil end
+    if M.current == name then M.current = nil; M.settings.current = nil; M.text = nil end
     M.saveSettings()
     M.infoCache = nil
     M.say(name .. " moved to the trash folder", GREY, 1.6)
@@ -473,6 +598,103 @@ end
 
 function M.toggleRecording()
     if M.recording then M.stopRecording() else M.startRecording() end
+end
+
+------------------------------------------------------------------ the pictures
+
+function M.listImages()
+    local names = {}
+    if has(M.imgDir) then
+        for f in hs.fs.dir(M.imgDir) do
+            if f:sub(1, 1) ~= "." and (f:match("%.png$") or f:match("%.jpe?g$")) then names[#names + 1] = f end
+        end
+    end
+    table.sort(names, function(a, b) return a:lower() < b:lower() end)
+    return names
+end
+
+function M.imagePath(file)
+    if file:sub(1, 1) == "/" then return file end
+    if file:sub(1, 2) == "~/" then return HOME .. file:sub(2) end
+    return M.imgDir .. "/" .. file
+end
+
+-- SNAP A PICTURE: the system's own selection cross-hair, drag over the
+-- button, the file lands in the images folder. Run as a task, not inline, so
+-- Hammerspoon is not held while he drags.
+function M.snap(name)
+    hs.fs.mkdir(M.dir); hs.fs.mkdir(M.imgDir)
+    name = M.cleanName(name):gsub("%.png$", "")
+    if name == "" then name = "button " .. M.croName() end
+    local path = M.imgDir .. "/" .. name .. ".png"
+    local n = 2
+    while has(path) do path = M.imgDir .. "/" .. name .. " " .. n .. ".png"; n = n + 1 end
+    local file = path:match("([^/]+)$")
+    M.snapTask = hs.task.new("/usr/sbin/screencapture", function()
+        if has(path) then M.say("picture saved: " .. file, { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 }, 2.5)
+        else M.say("no picture taken", GREY, 1.6) end
+        M.snapTask = nil
+    end, { "-i", "-x", path }):start()
+    M.say("drag over the button on the screen. Esc cancels", GREY, 12)
+    return true, file
+end
+
+-- FIND ONE PICTURE ON THE SCREENS. Each screen is shot and handed to find.py
+-- with the template; the first hit wins. Pixels come back, points go out: a
+-- Retina screen has twice the pixels of its points. Returns
+-- { x=, y=, w=, h=, score= } in points, or nil.
+function M.findImage(file, x1, y1, x2, y2)
+    local path = M.imagePath(file)
+    if not has(path) then M.say("no picture called " .. tostring(file), GREY, 2); return nil end
+    if not has(M.findPy) then M.say("find.py is missing", GREY, 3); return nil end
+    hs.fs.mkdir(M.dir); hs.fs.mkdir(M.tmpDir)
+    for i, scr in ipairs(hs.screen.allScreens()) do
+        local shot = scr:snapshot()
+        if shot then
+            local tmp = M.tmpDir .. "/screen" .. i .. ".png"
+            shot:saveToFile(tmp)
+            local out = hs.execute(string.format("%q %q %q %q 2>/dev/null", PYTHON, M.findPy, tmp, path)) or ""
+            local px, py, pw, ph, score, sw = out:match("^(%d+) (%d+) (%d+) (%d+) ([%d%.]+) (%d+)")
+            if px then
+                -- the shot covers the FULL screen, menu bar included, so the
+                -- offset and the scale come from fullFrame(), not frame().
+                -- hs.image:size() answers in points; the PNG's pixel width, which
+                -- find.py reports, is what tells a Retina screen (2 px per point)
+                -- from a plain one
+                local f = scr:fullFrame()
+                local scale = (tonumber(sw) and tonumber(sw) > 0) and (tonumber(sw) / f.w) or 1
+                local x, y = f.x + tonumber(px) / scale, f.y + tonumber(py) / scale
+                local w, h = tonumber(pw) / scale, tonumber(ph) / scale
+                local whole = not (x2 and y2 and x1 and y1 and x2 > x1 and y2 > y1)
+                if whole or (x >= x1 and y >= y1 and x + w <= x2 and y + h <= y2) then
+                    return { x = math.floor(x + 0.5), y = math.floor(y + 0.5), w = math.floor(w + 0.5), h = math.floor(h + 0.5),
+                             score = tonumber(score), screen = i }
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- "Find on screen" on the page: look, move the mouse there, say the score.
+function M.findTest(file)
+    local r = M.findImage(file, 0, 0, 0, 0)
+    if not r then M.say("not on the screen now: " .. file, GREY, 2.5); return false, "not on the screen now" end
+    hs.mouse.absolutePosition({ x = r.x + r.w / 2, y = r.y + r.h / 2 })
+    M.say(string.format("found %s at %d, %d (%.0f%%)", file, r.x, r.y, (r.score or 0) * 100), { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 }, 2.5)
+    return true, r
+end
+
+function M.trashImage(file)
+    local path = M.imgDir .. "/" .. file
+    if not has(path) then return false, "no picture called " .. file end
+    hs.fs.mkdir(M.trashDir)
+    local dest = M.trashDir .. "/" .. file
+    if has(dest) then dest = M.trashDir .. "/" .. os.date("%Y%m%d-%H%M%S") .. " " .. file end
+    local ok, err = os.rename(path, dest)
+    if not ok then return false, "could not move: " .. tostring(err) end
+    M.say(file .. " moved to the trash folder", GREY, 1.6)
+    return true
 end
 
 ------------------------------------------------------------------ the slots
@@ -520,11 +742,8 @@ function M.runSlot(slot)
         M.say("slot " .. tostring(slot) .. " is empty", GREY, 1.4)
         return false, "slot " .. tostring(slot) .. " is empty"
     end
-    if M.playing then M.stopPlaying() end
     if M.recording then M.stopRecording() end
-    local ok, err = M.loadMacro(name, true)
-    if not ok then M.say(err, GREY, 2); return false, err end
-    return M.play()
+    return M.runNamed(name)
 end
 
 ------------------------------------------------------------------ the schedule
@@ -589,61 +808,211 @@ end
 
 ------------------------------------------------------------------ playing
 
-local function post(ev)
-    local mods = ev.mods or {}
-    if ev.kind == "keyDown" or ev.kind == "keyUp" then
-        hs.eventtap.event.newKeyEvent(mods, ev.code, ev.kind == "keyDown"):post()
-    elseif ev.kind == "scrollWheel" then
-        hs.eventtap.event.newScrollEvent({ ev.dx or 0, ev.dy or 0 }, mods, "pixel"):post()
-    else
-        local e = hs.eventtap.event.newMouseEvent(et[ev.kind], { x = ev.x, y = ev.y }, mods)
-        if ev.button then e:setProperty(hs.eventtap.event.properties.mouseEventButtonNumber, ev.button) end
-        e:post()
-    end
+-- THE PLAYER RUNS SCRIPTS. The interpreter in script.lua asks this HOST for
+-- every click, key, wait and picture; the host does it with Hammerspoon. It
+-- runs inside a coroutine: a wait yields the seconds, the driver below
+-- resumes it on a timer, and stop drops the coroutine.
+local GREEN = { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 }
+local BUTTONS = { left = { "leftMouseDown", "leftMouseUp" }, right = { "rightMouseDown", "rightMouseUp" },
+                  middle = { "otherMouseDown", "otherMouseUp" } }
+
+local function mouseEvent(kind, x, y, mods, button, clickState)
+    local e = hs.eventtap.event.newMouseEvent(et[kind], { x = x, y = y }, mods or {})
+    if button == "middle" then e:setProperty(hs.eventtap.event.properties.mouseEventButtonNumber, 2) end
+    if clickState then e:setProperty(hs.eventtap.event.properties.mouseEventClickState, clickState) end
+    e:post()
 end
 
-function M.loadRecording()
-    if M.events and #M.events > 0 then return M.events end
-    if not hs.fs.attributes(M.file) then return nil end
-    local ok, rec = pcall(hs.json.read, M.file)
-    if ok and type(rec) == "table" and type(rec.events) == "table" then
-        M.events = rec.events
-        return M.events
-    end
-    return nil
+local function wait(sec) coroutine.yield(sec) end
+
+local function expand(p)
+    if p:sub(1, 2) == "~/" then return HOME .. p:sub(2) end
+    return p
 end
 
+local host = {}
+host.now = now
+host.sleep = function(sec)
+    if sec and sec > 0 then wait(sec / ((M.settings.speed and M.settings.speed > 0) and M.settings.speed or 1))
+    else wait(0) end
+end
+host.mouseMove = function(x, y) hs.mouse.absolutePosition({ x = x, y = y }) end
+host.click = function(button, x, y, times, mods)
+    local b = BUTTONS[button] or BUTTONS.left
+    if not x or not y then local p = hs.mouse.absolutePosition(); x, y = p.x, p.y end
+    -- the rhythm setting: every click at least this long after the last one
+    local d = M.settings.clickDelay or 0
+    if d > 0 then
+        local since = now() - (M.lastClickAt or 0)
+        if since < d then wait(d - since) end
+    end
+    hs.mouse.absolutePosition({ x = x, y = y })
+    wait(0.01)
+    for i = 1, (times or 1) do
+        mouseEvent(b[1], x, y, mods, button, i)
+        mouseEvent(b[2], x, y, mods, button, i)
+        if i < (times or 1) then wait(0.06) end
+    end
+    M.lastClickAt = now()
+end
+host.buttonDownUp = function(button, ud, x, y, mods)
+    local b = BUTTONS[button] or BUTTONS.left
+    if not x or not y then local p = hs.mouse.absolutePosition(); x, y = p.x, p.y end
+    hs.mouse.absolutePosition({ x = x, y = y })
+    mouseEvent(ud == "down" and b[1] or b[2], x, y, mods, button)
+end
+host.drag = function(button, x1, y1, x2, y2, mods)
+    local b = BUTTONS[button] or BUTTONS.left
+    local dragKind = b[1]:gsub("Down", "Dragged")
+    hs.mouse.absolutePosition({ x = x1, y = y1 })
+    wait(0.02)
+    mouseEvent(b[1], x1, y1, mods, button)
+    for i = 1, 12 do
+        local t = i / 12
+        mouseEvent(dragKind, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, mods, button)
+        wait(0.015)
+    end
+    mouseEvent(b[2], x2, y2, mods, button)
+    M.lastClickAt = now()
+end
+host.mousePos = function() local p = hs.mouse.absolutePosition(); return math.floor(p.x + 0.5), math.floor(p.y + 0.5) end
+host.key = function(mods, name)
+    local code = hs.keycodes.map[name]
+    if not code then error("no key called {" .. tostring(name) .. "}", 0) end
+    hs.eventtap.event.newKeyEvent(mods or {}, code, true):post()
+    hs.eventtap.event.newKeyEvent(mods or {}, code, false):post()
+    wait(0.012)
+end
+host.keyDownUp = function(name, down, mods)
+    local code = hs.keycodes.map[name]
+    if not code then error("no key called {" .. tostring(name) .. "}", 0) end
+    hs.eventtap.event.newKeyEvent(mods or {}, code, down and true or false):post()
+end
+host.type = function(text) hs.eventtap.keyStrokes(text); wait(0.01 * #text) end
+host.wheel = function(dir, times, mods)
+    local dx, dy = 0, 0
+    if dir == "down" then dy = -times elseif dir == "up" then dy = times
+    elseif dir == "left" then dx = times elseif dir == "right" then dx = -times end
+    hs.eventtap.event.newScrollEvent({ dx, dy }, mods or {}, "line"):post()
+    wait(0.05)
+end
+host.imageSearch = function(file, x1, y1, x2, y2) return M.findImage(file, x1, y1, x2, y2) end
+host.pixel = function(x, y)
+    for _, scr in ipairs(hs.screen.allScreens()) do
+        local f = scr:frame()
+        if x >= f.x and x < f.x + f.w and y >= f.y and y < f.y + f.h then
+            local img = scr:snapshot({ x = x, y = y, w = 1, h = 1 })
+            local c = img and img:colorAt({ x = 0, y = 0 })
+            if c then return string.format("0x%02X%02X%02X", math.floor(c.red * 255 + 0.5), math.floor(c.green * 255 + 0.5), math.floor(c.blue * 255 + 0.5)) end
+        end
+    end
+    return "0x000000"
+end
+host.say = function(text, long) M.sayWhilePlaying(text, long and 3 or 1.6) end
+host.run = function(what)
+    if what:match("^https?://") or what:match("^/") or what:match("^~") or what:match("^file:") then
+        hs.execute("open " .. string.format("%q", expand(what)))
+    elseif not hs.application.launchOrFocus(what) then
+        hs.execute("open " .. string.format("%q", what))
+    end
+end
+host.activate = function(title)
+    if hs.application.launchOrFocus(title) then return true end
+    local w = hs.window.find(title)
+    if w then w:focus(); return true end
+    return false
+end
+host.winExists = function(title) return hs.application.find(title) ~= nil or hs.window.find(title) ~= nil end
+host.clipboard = function() return hs.pasteboard.getContents() or "" end
+host.setClipboard = function(v) hs.pasteboard.setContents(v) end
+host.screen = function() local f = hs.screen.mainScreen():frame(); return f.w, f.h end
+host.fileExist = function(p) return hs.fs.attributes(expand(p)) ~= nil end
+host.fileRead = function(p) local f = io.open(expand(p), "r"); if not f then return "" end local t = f:read("a"); f:close(); return t end
+host.fileAppend = function(text, p) local f = io.open(expand(p), "a"); if f then f:write(text); f:close() end end
+M.host = host
+
+-- A WORD WHILE PLAYING: MsgBox and ToolTip show bottom right without taking
+-- the PLAY badge away for good.
+function M.sayWhilePlaying(text, seconds)
+    if not M.playing then return M.say(text, GREY, seconds) end
+    M.note = { text = text, at = now() }
+    pcall(badge, text, GREEN)
+    if M.noteTimer then M.noteTimer:stop() end
+    M.noteTimer = hs.timer.doAfter(seconds or 1.6, function()
+        if M.playing then pcall(badge, "PLAY  " .. (M.current or "last recording"), GREEN) end
+    end)
+end
+
+function M.loadLast()
+    local f = io.open(M.lastFile, "r")
+    if not f then return nil end
+    local t = f:read("a"); f:close()
+    return t
+end
+
+-- RUN A SCRIPT. Parse first: an error names its line and nothing moves.
+function M.runScript(text, name)
+    if M.playing then M.stopPlaying() end
+    name = name or "script"
+    local prog, perr = SCRIPT.parse(text or "")
+    if not prog then
+        M.lastError = { name = name, line = perr.line, msg = "line " .. perr.line .. ": " .. perr.msg, at = now() }
+        M.say(M.lastError.msg, GREY, 4)
+        return false, M.lastError.msg, perr.line
+    end
+    M.playing = true
+    M.lastError = nil
+    M.lastClickAt = 0
+    pcall(badge, "PLAY  " .. name, GREEN)
+    star("green")
+    local co = coroutine.create(function() return SCRIPT.run(prog, host, { speed = M.settings.speed }) end)
+    M.co = co
+    local function step()
+        if not M.playing or M.co ~= co then return end
+        local ok, a, b, c = coroutine.resume(co)
+        if not ok then
+            M.lastError = { name = name, msg = tostring(a), at = now() }
+            M.stopPlaying()
+            M.say("error: " .. tostring(a), GREY, 4)
+            return
+        end
+        if coroutine.status(co) == "dead" then
+            M.stopPlaying()
+            if a then M.say("done: " .. name, GREY, 1.2)
+            else
+                M.lastError = { name = name, msg = tostring(b), line = c, at = now() }
+                M.say(tostring(b), GREY, 4)
+            end
+            return
+        end
+        M.timer = hs.timer.doAfter(math.max(tonumber(a) or 0, 0.001), step)
+    end
+    step()
+    return true, "running " .. name
+end
+
+-- PLAY: what is in the player, else the last recording.
 function M.play()
     if M.recording then M.stopRecording() end
-    local evs = M.loadRecording()
-    if not evs or #evs == 0 then
+    local text, name = M.text, M.current
+    if not text or text == "" then text = M.loadLast(); name = "last recording" end
+    if not text or text == "" then
         M.say("nothing in the player yet", GREY, 1.4)
         return false, "nothing recorded yet"
     end
-    local plan = M.schedule(evs, M.settings)
-    M.playing = true
-    badge("PLAY" .. (M.current and ("  " .. M.current) or ""), { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 })
-    star("green")
-    local start = now()
-    local i = 1
-    local function step()
-        if not M.playing then return end
-        local elapsed = now() - start
-        while i <= #plan and plan[i].at <= elapsed do
-            pcall(post, plan[i].ev)
-            i = i + 1
-        end
-        if i > #plan then M.stopPlaying(); return end
-        local wait = plan[i].at - (now() - start)
-        if wait < 0.001 then wait = 0.001 end
-        M.timer = hs.timer.doAfter(wait, step)
-    end
-    step()
-    return true, "playing " .. #plan .. " events"
+    return M.runScript(text, name or "last recording")
+end
+
+-- RUN A NAMED MACRO NOW: into the player and off it goes.
+function M.runNamed(name)
+    local ok, err = M.loadMacro(name, true)
+    if not ok then M.say(err, GREY, 2); return false, err end
+    return M.runScript(M.text, name)
 end
 
 function M.stopPlaying()
     M.playing = false
+    M.co = nil
     if M.timer then M.timer:stop(); M.timer = nil end
     badgeOff()
     star(nil)
@@ -842,7 +1211,7 @@ function M.running() return M.loaded end
 
 function M.start()
     if M.loaded then return true, "already running" end
-    hs.fs.mkdir(M.dir); hs.fs.mkdir(M.macDir)
+    hs.fs.mkdir(M.dir); hs.fs.mkdir(M.macDir); hs.fs.mkdir(M.imgDir)
     loadSettings()
     M.hotkeys = {}
     if M.settings.current then M.loadMacro(M.settings.current, true) end   -- the one he had chosen
@@ -888,11 +1257,15 @@ function M.menu()
                         fn = function() if M.page then M.page.small() end end, disabled = (M.page == nil) }
     rows[#rows + 1] = { title = "Settings, in the browser",
                         fn = function() if M.page then M.page.big() end end, disabled = (M.page == nil) }
+    rows[#rows + 1] = { title = "Script editor" .. (M.current and ("  (" .. M.current .. ")") or ""),
+                        fn = function() if M.page then M.page.editor(M.current) end end, disabled = (M.page == nil or M.current == nil) }
+    rows[#rows + 1] = { title = "The language, documentation",
+                        fn = function() if M.page then M.page.docs() end end, disabled = (M.page == nil) }
     rows[#rows + 1] = { title = "-" }
-    rows[#rows + 1] = { title = "In the player: " .. (M.current or (M.events and #M.events > 0 and "last recording") or "nothing"), disabled = true }
+    rows[#rows + 1] = { title = "In the player: " .. (M.current or ((M.text and M.text ~= "") and "last recording") or "nothing"), disabled = true }
     rows[#rows + 1] = { title = "Record   " .. M.keyLabel(K.record), fn = M.toggleRecording }
-    local n = (M.events and #M.events) or 0
-    rows[#rows + 1] = { title = "Play   " .. M.keyLabel(K.play), fn = M.togglePlay, disabled = (n == 0 and not hs.fs.attributes(M.file)) }
+    local canPlay = (M.text and M.text ~= "") or hs.fs.attributes(M.lastFile) ~= nil
+    rows[#rows + 1] = { title = "Play   " .. M.keyLabel(K.play), fn = M.togglePlay, disabled = not canPlay }
     rows[#rows + 1] = { title = "Stop   " .. M.keyLabel(K.stop), fn = M.stopAll, disabled = not (M.recording or M.playing) }
     rows[#rows + 1] = { title = "New Macro…   " .. M.keyLabel(K.newMacro), fn = M.newMacro }
     local names = M.listMacros()
@@ -918,9 +1291,6 @@ function M.menu()
         rows[#rows + 1] = { title = "  " .. tostring(v) .. "x", checked = (M.settings.speed == v),
                             fn = function() M.setSpeed(v) end }
     end
-    rows[#rows + 1] = { title = "-" }
-    rows[#rows + 1] = { title = "Ignore mouse travel", checked = M.settings.ignoreTravel and true or false,
-                        fn = function() M.setIgnore(not M.settings.ignoreTravel) end }
     rows[#rows + 1] = { title = "-" }
     rows[#rows + 1] = { title = "Delay between clicks", disabled = true }
     for _, v in ipairs(M.DELAYS) do
