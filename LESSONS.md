@@ -96,3 +96,37 @@
 22. **Catch every throw before it reaches the server.** The httpserver callback is now wrapped in
     pcall: a Lua error out of the handler answers 500 rather than propagating into the C server,
     which can also crash the app. One bad request must never kill the machine.
+
+23. **hs.screen:snapshot(rect) is in the screen's own coordinates, not global.** On a one-monitor
+    Mac the main screen sits at the origin so global and local agree, and an earlier probe passed
+    by luck. With a second monitor the main screen was at global (872, 1478) and every sub-rectangle
+    snapshot returned nil, because its y was past the screen's height. Convert a global rectangle to
+    a screen by subtracting that screen's fullFrame origin before snapshotting; map the result back
+    by adding it again.
+
+24. **The search must not block, or the spinner cannot turn.** find.py through hs.execute froze the
+    main thread for the length of the match, so a status spinner would sit still. Now each region is
+    shot and handed to find.py as an hs.task; the player's coroutine yields an await marker and the
+    task's callback resumes it. Lua 5.4 yields across the interpreter's pcall, so this is invisible
+    to the language: ImageSearch looks synchronous, the machine stays live, the spinner turns.
+
+25. **Downscale to be fast, verify to be right.** Matching a template against a full Retina screen
+    (5120×2880) three times over is slow; a search of every screen does it per screen. The coarse
+    pass runs on a screen downscaled to 1600px — but a small template downscaled matches generic
+    regions at a high score. So the one candidate the coarse pass likes is re-scored at full
+    resolution, and only that verified score counts. Fast and not fooled.
+
+26. **Prefer scale 1.0, and take the best across screens.** A template cut on the screen it is
+    searched on matches at 1.0; trying 0.5 and 2.0 as well and keeping the highest let a coincidental
+    larger-scale match beat the true one. Take the first scale whose verified score clears the bar,
+    1.0 first. Across screens, keep the highest verified score rather than the first hit, so a real
+    0.98 on one screen beats a near-miss on another.
+
+27. **A throwaway screenshot is a BMP.** Encoding a full Retina screen to PNG for a one-shot search
+    is slow; hs.image:saveToFile(path, "bmp") writes it uncompressed in a blink, and find.py reads
+    it just the same. The kept pictures (the templates) stay PNG.
+
+28. **hs -c is flaky while timers run.** Probing the app through the `hs` command line during an
+    active search or play would hang the IPC client for good and had to be killed, while the app
+    itself stayed healthy the whole time. Verify through the settings page's own API with curl, not
+    through hs -c, whenever the app is doing something.

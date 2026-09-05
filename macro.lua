@@ -100,7 +100,23 @@ end
 
 M.settings = { speed = 1, ignoreTravel = false, clickDelay = 0,
                autoSmall = true, onTop = false, lan = false,
-               keys = copy(DEFAULT_KEYS), slots = {} }
+               keys = copy(DEFAULT_KEYS), slots = {}, zones = {} }
+
+-- A SEARCH ZONE is a rectangle in absolute screen points where a picture is
+-- looked for; no zone means every screen. Read from disk safely: only string
+-- keys with four numbers survive.
+local function normaliseZones(t)
+    local out = {}
+    if type(t) ~= "table" then return out end
+    for k, v in pairs(t) do
+        if type(k) == "string" and type(v) == "table"
+           and type(v.x) == "number" and type(v.y) == "number"
+           and type(v.w) == "number" and type(v.h) == "number" and v.w > 0 and v.h > 0 then
+            out[k] = { x = v.x, y = v.y, w = v.w, h = v.h, screen = v.screen }
+        end
+    end
+    return out
+end
 M.SPEEDS = { 0.5, 1, 2, 4, 8 }
 M.DELAYS = { 0, 0.25, 0.5, 1, 2 }
 
@@ -128,12 +144,15 @@ local function loadSettings()
                 end
             elseif k == "slots" then
                 M.settings.slots = SLOTS.normalise(v)
+            elseif k == "zones" then
+                M.settings.zones = normaliseZones(v)
             else
                 M.settings[k] = v
             end
         end
     end
     M.settings.slots = SLOTS.normalise(M.settings.slots)
+    M.settings.zones = normaliseZones(M.settings.zones)
 end
 
 function M.saveSettings()
@@ -602,6 +621,8 @@ end
 
 ------------------------------------------------------------------ the pictures
 
+local GREEN2 = { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 }
+
 function M.listImages()
     local names = {}
     if has(M.imgDir) then
@@ -613,16 +634,197 @@ function M.listImages()
     return names
 end
 
+-- The pictures with their search zones, for the page.
+function M.pictureInfo()
+    local out = {}
+    for _, n in ipairs(M.listImages()) do
+        local z = M.settings.zones[n]
+        out[#out + 1] = { name = n, zone = z and { x = math.floor(z.x), y = math.floor(z.y), w = math.floor(z.w), h = math.floor(z.h) } or false }
+    end
+    return out
+end
+
 function M.imagePath(file)
     if file:sub(1, 1) == "/" then return file end
     if file:sub(1, 2) == "~/" then return HOME .. file:sub(2) end
     return M.imgDir .. "/" .. file
 end
 
--- SNAP A PICTURE: the system's own selection cross-hair, drag over the
--- button, the file lands in the images folder. Run as a task, not inline, so
--- Hammerspoon is not held while he drags.
-function M.snap(name)
+------------------------------------------------------------------ the search spinner
+
+-- A SMALL SPINNER, bottom right, his rule: never mid screen, never a fright.
+-- One canvas, a turning arc and the words "searching for a pattern". It is
+-- reference counted, so a ClickImage that searches again and again keeps one
+-- steady spinner rather than a flicker.
+M.spin = { canvas = nil, timer = nil, depth = 0, angle = 0 }
+
+local function spinnerDraw()
+    local S = M.spin
+    if not S.canvas then
+        S.canvas = hs.canvas.new({ x = 0, y = 0, w = 10, h = 10 })
+        S.canvas:level(hs.canvas.windowLevels.overlay)
+        S.canvas:behavior({ "canJoinAllSpaces", "stationary" })
+    end
+    local scr = hs.mouse.getCurrentScreen() or hs.screen.mainScreen()
+    local f = scr:frame()
+    local w, h = 210, 30
+    S.canvas:frame({ x = f.x + f.w - w - 10, y = f.y + f.h - h - 10, w = w, h = h })
+    local cx, cy, r = 15, 15, 8
+    local a0 = S.angle
+    local elements = {
+        { type = "rectangle", action = "fill",
+          fillColor = { red = 0.04, green = 0.05, blue = 0.06, alpha = 0.92 },
+          roundedRectRadii = { xRadius = 6, yRadius = 6 } },
+        { type = "text", text = "searching for a pattern", textSize = 12,
+          textColor = { white = 1, alpha = 0.95 }, frame = { x = 30, y = 7, w = w - 34, h = 18 } },
+    }
+    -- a turning arc drawn as short segments, brightest at the head
+    local segs = 12
+    for i = 0, segs - 1 do
+        local a = a0 - i * (2 * math.pi / segs)
+        local alpha = 0.15 + 0.85 * (1 - i / segs)
+        elements[#elements + 1] = {
+            type = "segments", action = "stroke", strokeWidth = 2.4,
+            strokeColor = { red = 0.3, green = 0.85, blue = 0.4, alpha = alpha },
+            strokeCapStyle = "round",
+            coordinates = {
+                { x = cx + math.cos(a) * (r - 3), y = cy + math.sin(a) * (r - 3) },
+                { x = cx + math.cos(a) * r,       y = cy + math.sin(a) * r },
+            },
+        }
+    end
+    S.canvas:replaceElements(elements)
+    S.canvas:show()
+end
+
+function M.searchStart()
+    local S = M.spin
+    S.depth = S.depth + 1
+    if S.depth == 1 then
+        if S.timer then S.timer:stop() end
+        S.timer = hs.timer.doEvery(0.07, function()
+            S.angle = S.angle - 0.5
+            pcall(spinnerDraw)
+        end)
+        pcall(spinnerDraw)
+    end
+end
+
+function M.searchEnd()
+    local S = M.spin
+    S.depth = math.max(0, S.depth - 1)
+    if S.depth == 0 then
+        if S.timer then S.timer:stop(); S.timer = nil end
+        if S.canvas then S.canvas:hide() end
+    end
+end
+
+local function spinnerKill()
+    local S = M.spin
+    S.depth = 0
+    if S.timer then S.timer:stop(); S.timer = nil end
+    if S.canvas then S.canvas:delete(); S.canvas = nil end
+end
+
+------------------------------------------------------------------ the region selector
+
+-- DRAG A RECTANGLE ON THE SCREEN. A dim overlay across every screen, a bright
+-- box that follows the drag with its size in points, Escape to cancel. The
+-- rectangle comes back in absolute points (the same coordinates the mouse and
+-- snapshot use), through the callback. Used to set a search zone.
+function M.selectRegion(prompt, cb)
+    if M.selecting then return false, "already selecting" end
+    -- the union of every screen's full frame (menu bar included), so the
+    -- coordinates match snapshot() and the mouse.
+    local minx, miny, maxx, maxy
+    for _, scr in ipairs(hs.screen.allScreens()) do
+        local f = scr:fullFrame()
+        minx = minx and math.min(minx, f.x) or f.x
+        miny = miny and math.min(miny, f.y) or f.y
+        maxx = maxx and math.max(maxx, f.x + f.w) or (f.x + f.w)
+        maxy = maxy and math.max(maxy, f.y + f.h) or (f.y + f.h)
+    end
+    local ux, uy, uw, uh = minx, miny, maxx - minx, maxy - miny
+    local c = hs.canvas.new({ x = ux, y = uy, w = uw, h = uh })
+    c:level(hs.canvas.windowLevels.screenSaver)
+    c:behavior({ "canJoinAllSpaces" })
+    M.selecting = true
+    local start, cur = nil, nil
+    local function toLocal(p) return { x = p.x - ux, y = p.y - uy } end
+    local function redraw()
+        local els = {
+            { type = "rectangle", action = "fill", fillColor = { black = 1, alpha = 0.32 } },
+            { type = "text", text = prompt or "drag a rectangle. Esc cancels", textSize = 15,
+              textColor = { white = 1, alpha = 0.95 }, frame = { x = 0, y = 24, w = uw, h = 26 },
+              textAlignment = "center" },
+        }
+        if start and cur then
+            local x, y = math.min(start.x, cur.x), math.min(start.y, cur.y)
+            local w, h = math.abs(cur.x - start.x), math.abs(cur.y - start.y)
+            local lx, ly = x - ux, y - uy
+            els[#els + 1] = { type = "rectangle", action = "fill",
+                              frame = { x = lx, y = ly, w = w, h = h },
+                              fillColor = { red = 0.3, green = 0.85, blue = 0.4, alpha = 0.12 } }
+            els[#els + 1] = { type = "rectangle", action = "stroke", strokeWidth = 2,
+                              frame = { x = lx, y = ly, w = w, h = h },
+                              strokeColor = { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 } }
+            els[#els + 1] = { type = "text", text = string.format("%d × %d", math.floor(w), math.floor(h)),
+                              textSize = 13, textColor = { white = 1, alpha = 1 },
+                              frame = { x = lx, y = math.max(0, ly - 20), w = 120, h = 18 } }
+        end
+        c:replaceElements(els)
+    end
+    redraw()
+    c:show()
+    local function finish(rect)
+        M.selecting = false
+        if M.selTap then M.selTap:stop(); M.selTap = nil end
+        pcall(function() c:delete() end)
+        if cb then cb(rect) end
+    end
+    local et2 = hs.eventtap.event.types
+    M.selTap = hs.eventtap.new(
+        { et2.leftMouseDown, et2.leftMouseDragged, et2.leftMouseUp, et2.keyDown },
+        function(e)
+            local kind = e:getType()
+            if kind == et2.keyDown then
+                if e:getKeyCode() == hs.keycodes.map.escape then finish(nil); return true end
+                return false
+            end
+            local p = hs.mouse.absolutePosition()
+            if kind == et2.leftMouseDown then start = p; cur = p; redraw(); return true end
+            if kind == et2.leftMouseDragged then cur = p; redraw(); return true end
+            if kind == et2.leftMouseUp then
+                cur = p
+                if start then
+                    local x, y = math.min(start.x, cur.x), math.min(start.y, cur.y)
+                    local w, h = math.abs(cur.x - start.x), math.abs(cur.y - start.y)
+                    if w >= 4 and h >= 4 then finish({ x = x, y = y, w = w, h = h }) else finish(nil) end
+                else finish(nil) end
+                return true
+            end
+            return false
+        end)
+    M.selTap:start()
+    return true
+end
+
+-- the screen whose full frame holds a point, or the main screen
+local function screenAt(x, y)
+    for _, scr in ipairs(hs.screen.allScreens()) do
+        local f = scr:fullFrame()
+        if x >= f.x and x < f.x + f.w and y >= f.y and y < f.y + f.h then return scr end
+    end
+    return hs.screen.mainScreen()
+end
+
+------------------------------------------------------------------ snapping a picture
+
+-- SNAP A PICTURE: the system's own selection cross-hair, drag over the button,
+-- the file lands in the images folder. Run as a task, not inline, so
+-- Hammerspoon is not held while he drags. `then_` is called with the file name
+-- when it saved, or nil.
+function M.snap(name, then_)
     hs.fs.mkdir(M.dir); hs.fs.mkdir(M.imgDir)
     name = M.cleanName(name):gsub("%.png$", "")
     if name == "" then name = "button " .. M.croName() end
@@ -631,58 +833,147 @@ function M.snap(name)
     while has(path) do path = M.imgDir .. "/" .. name .. " " .. n .. ".png"; n = n + 1 end
     local file = path:match("([^/]+)$")
     M.snapTask = hs.task.new("/usr/sbin/screencapture", function()
-        if has(path) then M.say("picture saved: " .. file, { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 }, 2.5)
-        else M.say("no picture taken", GREY, 1.6) end
         M.snapTask = nil
+        if has(path) then
+            M.say("picture saved: " .. file, GREEN2, 2.5)
+            M.infoCache = nil
+            if then_ then then_(file) end
+        else
+            M.say("no picture taken", GREY, 1.6)
+            if then_ then then_(nil) end
+        end
     end, { "-i", "-x", path }):start()
     M.say("drag over the button on the screen. Esc cancels", GREY, 12)
     return true, file
 end
 
--- FIND ONE PICTURE ON THE SCREENS. Each screen is shot and handed to find.py
--- with the template; the first hit wins. Pixels come back, points go out: a
--- Retina screen has twice the pixels of its points. Returns
--- { x=, y=, w=, h=, score= } in points, or nil.
-function M.findImage(file, x1, y1, x2, y2)
-    local path = M.imagePath(file)
-    if not has(path) then M.say("no picture called " .. tostring(file), GREY, 2); return nil end
-    if not has(M.findPy) then M.say("find.py is missing", GREY, 3); return nil end
-    hs.fs.mkdir(M.dir); hs.fs.mkdir(M.tmpDir)
-    for i, scr in ipairs(hs.screen.allScreens()) do
-        local shot = scr:snapshot()
-        if shot then
-            local tmp = M.tmpDir .. "/screen" .. i .. ".png"
-            shot:saveToFile(tmp)
-            local out = hs.execute(string.format("%q %q %q %q 2>/dev/null", PYTHON, M.findPy, tmp, path)) or ""
-            local px, py, pw, ph, score, sw = out:match("^(%d+) (%d+) (%d+) (%d+) ([%d%.]+) (%d+)")
-            if px then
-                -- the shot covers the FULL screen, menu bar included, so the
-                -- offset and the scale come from fullFrame(), not frame().
-                -- hs.image:size() answers in points; the PNG's pixel width, which
-                -- find.py reports, is what tells a Retina screen (2 px per point)
-                -- from a plain one
-                local f = scr:fullFrame()
-                local scale = (tonumber(sw) and tonumber(sw) > 0) and (tonumber(sw) / f.w) or 1
-                local x, y = f.x + tonumber(px) / scale, f.y + tonumber(py) / scale
-                local w, h = tonumber(pw) / scale, tonumber(ph) / scale
-                local whole = not (x2 and y2 and x1 and y1 and x2 > x1 and y2 > y1)
-                if whole or (x >= x1 and y >= y1 and x + w <= x2 and y + h <= y2) then
-                    return { x = math.floor(x + 0.5), y = math.floor(y + 0.5), w = math.floor(w + 0.5), h = math.floor(h + 0.5),
-                             score = tonumber(score), screen = i }
-                end
-            end
+-- SET THE SEARCH ZONE for a picture: drag a rectangle, store it. No zone means
+-- every screen.
+function M.setZone(file)
+    if not has(M.imgDir .. "/" .. file) then return false, "no picture called " .. tostring(file) end
+    M.selectRegion("Drag the SEARCH ZONE for " .. file .. ". Esc keeps searching all screens", function(rect)
+        if rect then
+            rect.screen = nil
+            M.settings.zones[file] = rect
+            M.saveSettings()
+            M.say(string.format("zone for %s: %d × %d", file, math.floor(rect.w), math.floor(rect.h)), GREEN2, 2.2)
+        else
+            M.say("zone unchanged", GREY, 1.4)
         end
+    end)
+    return true
+end
+
+function M.clearZone(file)
+    M.settings.zones[file] = nil
+    M.saveSettings()
+    M.say(file .. " searches all screens", GREY, 1.6)
+    return true
+end
+
+-- NEW PATTERN, the two steps he asked for, 6.9.2026: snap the button, then set
+-- the search zone. Esc on the zone step leaves it searching all screens.
+function M.newPattern(name)
+    return M.snap(name, function(file)
+        if not file then return end
+        hs.timer.doAfter(0.3, function()
+            M.selectRegion("Now drag the SEARCH ZONE for " .. file .. ", or Esc to search all screens", function(rect)
+                if rect then
+                    rect.screen = nil
+                    M.settings.zones[file] = rect
+                    M.saveSettings()
+                    M.say(string.format("%s ready, zone %d × %d", file, math.floor(rect.w), math.floor(rect.h)), GREEN2, 2.5)
+                else
+                    M.say(file .. " ready, searches all screens", GREEN2, 2.2)
+                end
+            end)
+        end)
+    end)
+end
+
+------------------------------------------------------------------ finding a picture
+
+-- WHICH RECTANGLE TO SEARCH: an explicit region (from ImageSearch's x1..y2),
+-- else the picture's stored zone, else nil for every screen.
+local function regionFor(file, x1, y1, x2, y2)
+    if x1 and y1 and x2 and y2 and x2 > x1 and y2 > y1 then
+        return { x = x1, y = y1, w = x2 - x1, h = y2 - y1 }
     end
+    local z = M.settings.zones[file]
+    if z then return { x = z.x, y = z.y, w = z.w, h = z.h } end
     return nil
 end
 
--- "Find on screen" on the page: look, move the mouse there, say the score.
+-- FIND A PICTURE, WITHOUT BLOCKING. Each region is shot and handed to find.py
+-- as a background task, so the main thread is free and the spinner turns. The
+-- first hit calls back with { x, y, w, h, score } in points; all misses call
+-- back with nil. A region search shoots just that rectangle; no region shoots
+-- every screen in turn.
+function M.findImageAsync(file, region, cb)
+    local function later(v) hs.timer.doAfter(0, function() cb(v) end) end
+    local path = M.imagePath(file)
+    if not has(path) then M.say("no picture called " .. tostring(file), GREY, 2); return later(nil) end
+    if not has(M.findPy) then M.say("find.py is missing", GREY, 3); return later(nil) end
+    hs.fs.mkdir(M.dir); hs.fs.mkdir(M.tmpDir)
+    -- the jobs: {rect (absolute), screen}
+    local jobs = {}
+    if region then
+        jobs[1] = { rect = region, scr = screenAt(region.x + region.w / 2, region.y + region.h / 2) }
+    else
+        for _, scr in ipairs(hs.screen.allScreens()) do
+            jobs[#jobs + 1] = { rect = scr:fullFrame(), scr = scr }
+        end
+    end
+    M.searchStart()
+    local finished = false
+    local best = nil     -- the highest-scoring hit across every screen searched
+    local function finish() if finished then return end finished = true; M.searchEnd(); cb(best) end
+    local i = 0
+    local function runNext()
+        i = i + 1
+        if i > #jobs then return finish() end
+        local job = jobs[i]
+        local rect = job.rect
+        -- snapshot takes the rect in the SCREEN'S OWN coordinates (0,0 at that
+        -- screen's top-left), while zones and clicks are in global points; so
+        -- subtract the screen's full-frame origin. (A two-monitor layout puts
+        -- the main screen far from the global origin.)
+        local ff = job.scr:fullFrame()
+        local shot = job.scr:snapshot({ x = rect.x - ff.x, y = rect.y - ff.y, w = rect.w, h = rect.h })
+        if not shot then return runNext() end
+        -- BMP, not PNG: encoding a full Retina screen to PNG is slow, and this
+        -- picture is thrown away the moment find.py has read it.
+        local tmp = M.tmpDir .. "/search" .. i .. ".bmp"
+        shot:saveToFile(tmp, "bmp")
+        hs.task.new(PYTHON, function(_, out, _)
+            out = out or ""
+            local px, py, pw, ph, score, sw = out:match("(%d+) (%d+) (%d+) (%d+) ([%d%.]+) (%d+)")
+            if px then
+                -- px, py are relative to the shot, i.e. to the region's top left.
+                -- sw is the shot's pixel width; the region's point width is rect.w.
+                local scale = (tonumber(sw) and tonumber(sw) > 0) and (tonumber(sw) / rect.w) or 1
+                local x = rect.x + tonumber(px) / scale
+                local y = rect.y + tonumber(py) / scale
+                local w, h = tonumber(pw) / scale, tonumber(ph) / scale
+                local hit = { x = math.floor(x + 0.5), y = math.floor(y + 0.5),
+                              w = math.floor(w + 0.5), h = math.floor(h + 0.5), score = tonumber(score) }
+                if not best or hit.score > best.score then best = hit end
+            end
+            runNext()     -- keep looking: the best across all screens wins, not the first
+        end, { M.findPy, tmp, path }):start()
+    end
+    runNext()
+end
+
+-- "Find on screen" on the page: look (with the picture's own zone), move the
+-- mouse there, say the score.
 function M.findTest(file)
-    local r = M.findImage(file, 0, 0, 0, 0)
-    if not r then M.say("not on the screen now: " .. file, GREY, 2.5); return false, "not on the screen now" end
-    hs.mouse.absolutePosition({ x = r.x + r.w / 2, y = r.y + r.h / 2 })
-    M.say(string.format("found %s at %d, %d (%.0f%%)", file, r.x, r.y, (r.score or 0) * 100), { red = 0.3, green = 0.85, blue = 0.4, alpha = 1 }, 2.5)
-    return true, r
+    M.findImageAsync(file, regionFor(file), function(r)
+        if not r then M.say("not on the screen now: " .. file, GREY, 2.5); return end
+        hs.mouse.absolutePosition({ x = r.x + r.w / 2, y = r.y + r.h / 2 })
+        M.say(string.format("found %s at %d, %d (%.0f%%)", file, r.x, r.y, (r.score or 0) * 100), GREEN2, 2.5)
+    end)
+    return true
 end
 
 function M.trashImage(file)
@@ -693,6 +984,8 @@ function M.trashImage(file)
     if has(dest) then dest = M.trashDir .. "/" .. os.date("%Y%m%d-%H%M%S") .. " " .. file end
     local ok, err = os.rename(path, dest)
     if not ok then return false, "could not move: " .. tostring(err) end
+    M.settings.zones[file] = nil     -- the zone goes with the picture
+    M.saveSettings()
     M.say(file .. " moved to the trash folder", GREY, 1.6)
     return true
 end
@@ -896,12 +1189,27 @@ host.wheel = function(dir, times, mods)
     hs.eventtap.event.newScrollEvent({ dx, dy }, mods or {}, "line"):post()
     wait(0.05)
 end
-host.imageSearch = function(file, x1, y1, x2, y2) return M.findImage(file, x1, y1, x2, y2) end
+-- The search runs as a background task so the main thread stays free and the
+-- spinner turns. The coroutine yields an await marker; the search's callback
+-- resumes it with the result. In the interpreter this looks synchronous.
+host.imageSearch = function(file, x1, y1, x2, y2)
+    local co = M.co
+    local region = regionFor(file, x1, y1, x2, y2)
+    local result = nil
+    M.findImageAsync(file, region, function(r)
+        result = r
+        if M.co == co and M.playing and M.resume then M.resume() end
+    end)
+    coroutine.yield({ await = true })
+    return result
+end
+-- ClickImage and WaitImage loop; this keeps one steady spinner across the tries.
+host.searchHold = function(on) if on then M.searchStart() else M.searchEnd() end end
 host.pixel = function(x, y)
     for _, scr in ipairs(hs.screen.allScreens()) do
-        local f = scr:frame()
+        local f = scr:fullFrame()
         if x >= f.x and x < f.x + f.w and y >= f.y and y < f.y + f.h then
-            local img = scr:snapshot({ x = x, y = y, w = 1, h = 1 })
+            local img = scr:snapshot({ x = x - f.x, y = y - f.y, w = 1, h = 1 })
             local c = img and img:colorAt({ x = 0, y = 0 })
             if c then return string.format("0x%02X%02X%02X", math.floor(c.red * 255 + 0.5), math.floor(c.green * 255 + 0.5), math.floor(c.blue * 255 + 0.5)) end
         end
@@ -970,6 +1278,7 @@ function M.runScript(text, name)
     local function step()
         if not M.playing or M.co ~= co then return end
         local ok, a, b, c = coroutine.resume(co)
+        if M.co ~= co then return end       -- stopped while running
         if not ok then
             M.lastError = { name = name, msg = tostring(a), at = now() }
             M.stopPlaying()
@@ -985,8 +1294,11 @@ function M.runScript(text, name)
             end
             return
         end
+        -- a search yields an await marker: do not schedule; its callback resumes.
+        if type(a) == "table" and a.await then return end
         M.timer = hs.timer.doAfter(math.max(tonumber(a) or 0, 0.001), step)
     end
+    M.resume = step
     step()
     return true, "running " .. name
 end
@@ -1013,7 +1325,9 @@ end
 function M.stopPlaying()
     M.playing = false
     M.co = nil
+    M.resume = nil
     if M.timer then M.timer:stop(); M.timer = nil end
+    spinnerKill()
     badgeOff()
     star(nil)
 end
@@ -1234,6 +1548,8 @@ function M.stop()
     if M.captureTap then M.captureTap:stop(); M.captureTap = nil end
     if M.captureTimer then M.captureTimer:stop(); M.captureTimer = nil end
     if M.noteTimer then M.noteTimer:stop(); M.noteTimer = nil end
+    if M.selTap then M.selTap:stop(); M.selTap = nil; M.selecting = false end
+    spinnerKill()
     M.capture = nil
     M.unbindKeys()
     if M.page and M.page.stop then pcall(M.page.stop) end

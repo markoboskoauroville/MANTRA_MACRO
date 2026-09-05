@@ -69,14 +69,27 @@ editor library, the plain text box and the panel still work.
 
 ## The eye
 
-"Snap a picture" on the settings page (or in the editor) starts the system's own cross-hair: drag over
-a button, and `~/.mantra_macro/images/<name>.png` is there. `find` beside a picture looks for it on
-the screens now, moves the mouse to it and says the score. In a script, `ClickImage "name.png"` finds
-it wherever it is and clicks its centre; `WaitImage "name.png", 10` waits for it to appear.
+"Snap button" on the settings page starts the system's own cross-hair: drag over a button, and
+`~/.mantra_macro/images/<name>.png` is there. In a script, `ClickImage "name.png"` finds it on the
+screen and clicks its centre; `WaitImage "name.png", 10` waits for it to appear; `find` beside a
+picture on the page looks for it now, moves the mouse there and says the score.
 
-`find.py` does the looking with OpenCV (`cv2.matchTemplate`, normalised, 80% or better), trying the
-picture at its own size and at half and double, so a picture cut on the Retina screen still works on
-the other monitor. Each screen is shot with Hammerspoon, pixels come back, points go out.
+**A search zone, or every screen.** Each picture either searches all screens, or a rectangle you
+draw. On the page, "zone" lets you drag the zone where the button appears; "all" clears it back to
+every screen; "Snap & set zone" does the two steps together, snap then zone. A zone is faster (only
+that rectangle is shot) and cannot be fooled by something similar elsewhere. Zones live in
+`settings.json` beside the picture's name.
+
+**A spinner while it looks.** A small turning spinner sits bottom right with "searching for a
+pattern" and goes when the search ends. It can turn because the search does not block: each region is
+shot and handed to `find.py` as a background task, and the script's coroutine waits for the result
+rather than freezing Hammerspoon.
+
+`find.py` does the looking with OpenCV: a fast coarse pass on a downscaled screen, then the one
+candidate it likes is verified at full resolution, so speed never costs a wrong click. The picture is
+tried at its own size first, then half and double for a different-DPI screen; the best match across
+every screen searched wins. The snapshot rectangle is in the screen's own coordinates; the result
+comes back in the global points the clicks use.
 
 ## The slots
 

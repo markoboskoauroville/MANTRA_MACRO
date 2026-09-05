@@ -977,14 +977,17 @@ HOSTFN.findimage = function(host, a, line)
     if not r then return 0 end
     return S.newArray({ r.x + math.floor(r.w / 2), r.y + math.floor(r.h / 2) })
 end
+-- one steady spinner across a retry loop, if the host offers it
+local function hold(host, on) if host.searchHold then host.searchHold(on) end end
 HOSTFN.waitimage = function(host, a, line)
     -- WaitImage "file.png", seconds  -> 1 when it appeared, 0 on time out
     local file, secs = toStr(a[1]), optNum(a[2], line, 10)
     local deadline = need(host, "now", line)() + secs
+    hold(host, true)
     while true do
         local r = need(host, "imageSearch", line)(file, 0, 0, 0, 0)
-        if r then return 1 end
-        if need(host, "now", line)() >= deadline then return 0 end
+        if r then hold(host, false); return 1 end
+        if need(host, "now", line)() >= deadline then hold(host, false); return 0 end
         need(host, "sleep", line)(0.4)
     end
 end
@@ -993,13 +996,14 @@ HOSTFN.clickimage = function(host, a, line, I)
     local file, secs = toStr(a[1]), optNum(a[2], line, 0)
     local button = a[3] and toStr(a[3]):lower() or "left"
     local deadline = need(host, "now", line)() + secs
+    hold(host, true)
     while true do
         local r = need(host, "imageSearch", line)(file, 0, 0, 0, 0)
         if r then
             need(host, "click", line)(button, r.x + math.floor(r.w / 2), r.y + math.floor(r.h / 2), 1, I.heldMods())
-            return 1
+            hold(host, false); return 1
         end
-        if need(host, "now", line)() >= deadline then return 0 end
+        if need(host, "now", line)() >= deadline then hold(host, false); return 0 end
         need(host, "sleep", line)(0.4)
     end
 end

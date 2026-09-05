@@ -60,7 +60,9 @@ local function state()
     return {
         build = P.build,
         lastError = lastError,
+        searching = (M.spin and M.spin.depth > 0) and true or false,
         images = M.listImages(),
+        pictures = M.pictureInfo(),
         recording = M.recording, playing = M.playing,
         capture = M.capture or "",
         pending = M.pending or "",
@@ -144,6 +146,9 @@ local function act(d)
     elseif a == "edit" then P.editor(d.name)
     elseif a == "docs" then P.docs()
     elseif a == "snap" then ok, err = M.snap(d.name or "")
+    elseif a == "newpattern" then ok, err = M.newPattern(d.name or "")
+    elseif a == "setzone" then later(function() M.setZone(d.name) end)
+    elseif a == "clearzone" then ok, err = M.clearZone(d.name)
     elseif a == "findtest" then later(function() M.findTest(d.name) end)
     elseif a == "trashimage" then ok, err = M.trashImage(d.name)
     else ok, err = false, "unknown action " .. tostring(a) end
@@ -276,7 +281,10 @@ local PAGE = [==[
   .pic{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
   .pic:first-of-type{border-top:0}
   .pic img{max-width:120px;max-height:48px;border-radius:4px;background:#fff;flex:0 0 auto}
-  .pic .name{flex:1;min-width:0;font:13px ui-monospace,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pic .pbody{flex:1;min-width:0}
+  .pic .name{font:13px ui-monospace,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pic .where{font-size:11px;color:var(--dim);margin-top:2px}
+  .pic .pacts{display:flex;gap:4px;flex:0 0 auto}
   .macro .kind{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
 
   /* THE MINI VIEW: the same page, tighter, in the small window. Nothing is
@@ -324,10 +332,11 @@ local PAGE = [==[
 
 <section id="imagesSec">
   <h2>Pictures</h2>
-  <div class="hint">A picture of a button, cut from the screen. A script finds it with ClickImage "name.png" wherever it is. Snap: drag over the button on the screen.</div>
+  <div class="hint">A picture of a button, cut from the screen. A script finds it with ClickImage "name.png". Each picture searches all screens, or a search zone you draw (faster, and no false match elsewhere).</div>
   <div class="newrow">
     <input type="text" id="snapName" placeholder="name for the picture">
-    <button id="kSnap">Snap a picture</button>
+    <button id="kSnap" title="drag over the button; it searches all screens">Snap button</button>
+    <button id="kNewPattern" title="two steps: snap the button, then drag its search zone">Snap &amp; set zone</button>
   </div>
   <div id="images"></div>
   <div class="row2"><a class="btn" id="kDocs" href="/docs" target="_blank">The language, documentation</a></div>
@@ -474,16 +483,24 @@ function loadThumb(name, el){
 }
 function drawImages(s){
   var box = document.getElementById("images");
-  if (!s.images.length) { box.innerHTML = '<div class="hint">No pictures yet.</div>'; return; }
+  var pics = s.pictures || [];
+  if (!pics.length) { box.innerHTML = '<div class="hint">No pictures yet.</div>'; return; }
   var h = "";
-  s.images.forEach(function(n, i){
+  pics.forEach(function(p, i){
+    var n = p.name;
+    var zone = p.zone ? ('zone ' + p.zone.w + '×' + p.zone.h) : 'all screens';
     h += '<div class="pic"><img data-img="' + i + '" alt="">'
-      + '<div class="name" title="' + esc(n) + '">' + esc(n) + '</div>'
+      + '<div class="pbody"><div class="name" title="' + esc(n) + '">' + esc(n) + '</div>'
+      + '<div class="where">searches ' + zone + '</div></div>'
+      + '<div class="pacts">'
       + '<button class="icon" data-a="findtest" data-name="' + esc(n) + '" title="find it on the screen now and move the mouse there">find</button>'
-      + '<button class="icon danger" data-a="trashimage" data-name="' + esc(n) + '" title="move to the trash folder">' + (armed["img:" + n] ? 'sure?' : '🗑') + '</button></div>';
+      + '<button class="icon" data-a="setzone" data-name="' + esc(n) + '" title="draw the rectangle of the screen where it is searched">zone</button>'
+      + (p.zone ? '<button class="icon" data-a="clearzone" data-name="' + esc(n) + '" title="search every screen again">all</button>' : '')
+      + '<button class="icon danger" data-a="trashimage" data-name="' + esc(n) + '" title="move to the trash folder">' + (armed["img:" + n] ? 'sure?' : '🗑') + '</button>'
+      + '</div></div>';
   });
   box.innerHTML = h;
-  s.images.forEach(function(n, i){ var el = box.querySelector('[data-img="' + i + '"]'); if (el) loadThumb(n, el); });
+  pics.forEach(function(p, i){ var el = box.querySelector('[data-img="' + i + '"]'); if (el) loadThumb(p.name, el); });
 }
 
 function drawPlayback(s){
@@ -562,6 +579,8 @@ document.body.addEventListener("click", function(e){
   }
   if (a === "capture") { send({a:"capture", id:t.dataset.id}); return; }
   if (a === "findtest") { send({a:"findtest", name:t.dataset.name}); return; }
+  if (a === "setzone") { send({a:"setzone", name:t.dataset.name}); return; }
+  if (a === "clearzone") { send({a:"clearzone", name:t.dataset.name}); return; }
   if (a === "trashimage") {
     var key = "img:" + t.dataset.name;
     if (armed[key]) { delete armed[key]; send({a:"trashimage", name:t.dataset.name}); }
@@ -589,6 +608,10 @@ document.getElementById("kWrite").onclick = function(){
 document.getElementById("kSnap").onclick = function(){
   var inp = document.getElementById("snapName");
   send({a:"snap", name: inp.value}); inp.value = "";
+};
+document.getElementById("kNewPattern").onclick = function(){
+  var inp = document.getElementById("snapName");
+  send({a:"newpattern", name: inp.value}); inp.value = "";
 };
 document.getElementById("newName").oninput = function(){ this.dataset.touched = "1"; };
 document.getElementById("newName").onkeydown = function(e){ if (e.key === "Enter") document.getElementById("kNew").onclick(); };
