@@ -82,13 +82,14 @@ with a little of the background. A picture cut on a Retina screen is tried at ha
 too, so it still works on the other monitor.
 
 **The search zone.** On the settings page each picture either searches every screen, or a zone you
-draw: press "zone", drag the rectangle where the button appears. A zone is faster (only that
+draw: press "zone" and drag the rectangle with the same cross-hair that snaps a
+button, over where the button appears. A zone is faster (only that
 rectangle is looked at) and safer (nothing that looks similar elsewhere can be matched by mistake).
 "Snap & set zone" does both steps at once: snap the button, then draw its zone. "all" on a picture
 puts it back to searching every screen. The zone is remembered with the picture.
 
-While the recorder is looking, a small spinner sits at the bottom right of the screen with the words
-"searching for a pattern", and goes when the search ends.
+While the recorder is looking, a small spinner sits at the bottom middle of the screen with the words
+"searching for a pattern", and goes when the search ends. Every status line of the recorder shows there.
 
 In a script, `ImageSearch &x, &y, x1, y1, x2, y2, "button.png"` searches the rectangle from
 (x1, y1) to (x2, y2); four zeros mean the picture's own zone, or every screen if it has none.

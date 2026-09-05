@@ -130,3 +130,18 @@
     active search or play would hang the IPC client for good and had to be killed, while the app
     itself stayed healthy the whole time. Verify through the settings page's own API with curl, not
     through hs -c, whenever the app is doing something.
+29. **A canvas at a high window level swallows the mouse before an eventtap sees it.** The drag
+    overlay for choosing a search zone (a screenSaver-level canvas plus an hs.eventtap for the mouse)
+    never received a leftMouseDown: the canvas took the clicks first. Rather than fight the level,
+    the zone is chosen with the SAME native cross-hair that snaps a button (screencapture -i). The
+    selected region is saved, its rectangle is recovered by finding that image back on the screen
+    with the ordinary search, and the image is thrown away. One capture path, and it just works.
+
+30. **Recover coordinates by locating the capture.** screencapture -i gives an image, not a
+    rectangle. To turn the drag into coordinates, the captured region is searched for on the screens
+    (it is there, a fraction of a second old, and distinctive because it holds the button), and the
+    match's position is the zone. Verified: a region captured at global 260,180 came back at 261,181.
+
+31. **Bottom middle, not the corner.** His request 6.9.2026 for the macro recorder: every status
+    line and the search spinner are centred along the bottom edge, a little above it to clear the
+    Dock, rather than in the bottom-right corner the other apps use.

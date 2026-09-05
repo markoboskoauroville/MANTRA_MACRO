@@ -75,13 +75,15 @@ screen and clicks its centre; `WaitImage "name.png", 10` waits for it to appear;
 picture on the page looks for it now, moves the mouse there and says the score.
 
 **A search zone, or every screen.** Each picture either searches all screens, or a rectangle you
-draw. On the page, "zone" lets you drag the zone where the button appears; "all" clears it back to
-every screen; "Snap & set zone" does the two steps together, snap then zone. A zone is faster (only
+draw. On the page, "zone" lets you draw the zone with the cross-hair (the same one that snaps a button)
+over where the button appears; "all" clears it back to every screen; "Snap & set zone" does the two
+steps together, snap then zone. A zone is faster (only
 that rectangle is shot) and cannot be fooled by something similar elsewhere. Zones live in
 `settings.json` beside the picture's name.
 
-**A spinner while it looks.** A small turning spinner sits bottom right with "searching for a
-pattern" and goes when the search ends. It can turn because the search does not block: each region is
+**A spinner while it looks.** A small turning spinner sits bottom middle with "searching for a
+pattern" and goes when the search ends. Every status line of the recorder shows there, centred along
+the bottom, not in a corner (his request, 6.9.2026). It can turn because the search does not block: each region is
 shot and handed to `find.py` as a background task, and the script's coroutine waits for the result
 rather than freezing Hammerspoon.
 
