@@ -5,8 +5,9 @@
    themselves would also record the ⌃⌥⌘ he pressed to stop, and play it back.
 
 2. **The hotkey is seen by the eventtap.** The tap sits ahead of the hotkey, so the R that starts
-   the recording arrives inside the recording. Any R or P with all three modifiers, or within the
-   first second, is dropped, and any trailing R or P is cut off at the end.
+   the recording arrives inside the recording. Any record, play or stop chord, or its key within
+   the first second, is dropped, and any trailing one is cut off at the end. Now that the keys are
+   his to change, this check reads the settings, never a constant.
 
 3. **Rhythm must not break order.** Putting every click a fixed delay after the last one and leaving
    the events between them where they were would let a key land after the click it preceded. So the
@@ -17,4 +18,35 @@
    every repeat and posting them all doubles the letters.
 
 5. **The status is a badge, bottom right, not an alert.** His rule from the keyboard: never mid
-   screen, never a fright. One canvas, made once, moved to the screen the pointer is on.
+   screen, never a fright. One canvas, made once, moved to the screen the pointer is on. A badge
+   that cannot be drawn (no screen, a test stub) is caught, so a word can never break the action
+   that spoke it.
+
+6. **The slots are a pure file.** `slots.lua` knows nothing of Hammerspoon: assign, clear, move,
+   swap, rename, remove, auto-place, normalise. Every rule about the ten slots (one macro in one
+   slot, a move shifts the rows between, a hand-edited file with a name twice keeps the first) is
+   a line in `tests/test_slots.lua` and runs in plain lua5.4 in a blink.
+
+7. **One chord, one thing.** A key is refused rather than bound twice, and the two slot chords must
+   differ: `hs.hotkey.bind` will happily bind ⌃3 twice and only one of them fires. `usedBy` is asked
+   before any key is set, including the ten digits under a new modifier set.
+
+8. **Rebind by letting go first.** `bindKeys` always deletes every handle it made before binding
+   from the settings. A changed key otherwise leaves its old chord alive.
+
+9. **The page keeps no state.** The macros come from the folder each poll (event counts cached by
+   mtime), the slots from the settings, the keys from the settings. A file renamed in the Finder
+   shows on the next poll; a slot that still names the old file says "not in the folder". A rename
+   in progress is the one thing not redrawn under the cursor.
+
+10. **Localhost by default.** This page can press keys and click. It listens on 127.0.0.1 unless
+    "reachable from the phone" is on, and the server is rebuilt on that switch because the
+    interface cannot be changed under a running one.
+
+11. **`hs -c` and a posted keystroke do not mix.** Testing the key capture by posting a chord
+    through `hs -c 'hs.eventtap.keyStroke(...)'` hung the IPC client, and every later `hs -c` with
+    it, until that client process was killed. The capture itself worked. Test captures with a real
+    key, or call `MACRO.setKey` directly.
+
+12. **The stop key is ⌃⌥⌘. (full stop).** Every letter near R and P was a word he might want; the
+    full stop is the one key on the row that says stop and types nothing worth keeping.

@@ -99,13 +99,41 @@ eq(#names, 0, "no macros in an empty folder")
 local rows = M.menu()
 local hasNew, hasLoad = false, false
 for _, r in ipairs(rows) do
-    if r.title == "New Macro…" and r.fn then hasNew = true end
+    if r.title:sub(1, #"New Macro…") == "New Macro…" and r.fn then hasNew = true end
     if r.title == "Load Macro" and type(r.menu) == "table" and r.menu[1].title == "(none yet)" then hasLoad = true end
 end
 eq(hasNew and 1 or 0, 1, "menu has New Macro")
 eq(hasLoad and 1 or 0, 1, "menu has Load Macro with (none yet)")
 local ok, why = M.loadMacro("ghost")
 eq(ok and 1 or 0, 0, "loading a macro that is not there fails softly: " .. tostring(why))
+
+-- the folder is the top item, his request 5.9.2026
+eq(rows[1].title == "Open the macros folder" and 1 or 0, 1, "the folder is the top item")
+
+-- the keys: labels, collisions, the slot chords
+eq(M.keyLabel(M.settings.keys.record) == "⌃⌥⌘R" and 1 or 0, 1, "record is ⌃⌥⌘R by default")
+eq(M.keyLabel(M.settings.keys.stop) == "⌃⌥⌘." and 1 or 0, 1, "stop is ⌃⌥⌘. by default")
+eq(M.modsLabel(M.settings.keys.loadMods) == "⌥" and 1 or 0, 1, "⌥ loads a slot")
+eq(M.modsLabel(M.settings.keys.runMods) == "⌃" and 1 or 0, 1, "⌃ runs a slot")
+local okk, why2 = M.setKey("play", { "ctrl", "alt", "cmd" }, "r")
+eq(okk and 1 or 0, 0, "play cannot take record's key: " .. tostring(why2))
+okk, why2 = M.setKey("play", { "alt" }, "3")
+eq(okk and 1 or 0, 0, "play cannot take a slot chord: " .. tostring(why2))
+eq(M.setKey("play", { "cmd", "shift" }, "p") and 1 or 0, 1, "play moves to ⇧⌘P")
+eq(M.keyLabel(M.settings.keys.play) == "⇧⌘P" and 1 or 0, 1, "and the label says so")
+okk, why2 = M.setMods("runMods", { "alt" })
+eq(okk and 1 or 0, 0, "run cannot share the load chord: " .. tostring(why2))
+okk, why2 = M.setMods("runMods", {})
+eq(okk and 1 or 0, 0, "run needs a modifier: " .. tostring(why2))
+eq(M.setMods("runMods", { "ctrl", "shift" }) and 1 or 0, 1, "run moves to ⌃⇧")
+eq(M.modsLabel(M.settings.keys.runMods) == "⌃⇧" and 1 or 0, 1, "and the label says ⌃⇧")
+eq(M.resetKeys() and 1 or 0, 1, "keys back to the defaults")
+eq(M.keyLabel(M.settings.keys.play) == "⌃⌥⌘P" and 1 or 0, 1, "play is ⌃⌥⌘P again")
+
+-- names safe for the disk
+eq(M.cleanName("  a/b:c  ") == "a-b-c" and 1 or 0, 1, "slashes and colons become dashes")
+eq(M.cleanName(".hidden") == "hidden" and 1 or 0, 1, "no leading dot")
+eq(M.cleanName("") == "" and 1 or 0, 1, "empty stays empty")
 
 -- the Croatian name: day.month. hour.minute, no year
 local name = M.croName(os.time({ year = 2026, month = 9, day = 4, hour = 18, min = 5 }))
