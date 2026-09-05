@@ -85,3 +85,14 @@
 20. **`timeout` does not exist on macOS.** `timeout 10 hs -c ...` silently ran nothing and the
     "reload" it wrapped never happened; the old server answered `/health` and the new routes were
     "missing". Check the command exists before trusting its silence.
+
+21. **Never serve binary through hs.httpserver.** The response body is turned into a UTF-8
+    NSString; a PNG's bytes are not valid UTF-8, the conversion returns nil, and the server
+    crashes Hammerspoon with a bad access in objc_retain — the whole app went down and the star
+    menu with it (5.9.2026). Pictures now go out as base64 inside a JSON string (always valid
+    UTF-8) and the page shows them with a `data:` URI, cached so each is fetched once. Every
+    httpserver response in this project is text: HTML, JSON, plain.
+
+22. **Catch every throw before it reaches the server.** The httpserver callback is now wrapped in
+    pcall: a Lua error out of the handler answers 500 rather than propagating into the C server,
+    which can also crash the app. One bad request must never kill the machine.

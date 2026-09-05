@@ -465,17 +465,25 @@ function drawKeys(s){
   modChips("runMods", s.runMods, "runMods");
 }
 
+var imgCache = {};   // name -> data: URI, so a picture is fetched once, not every poll
+function loadThumb(name, el){
+  if (imgCache[name]) { el.src = imgCache[name]; return; }
+  fetch("/imagedata?name=" + encodeURIComponent(name), {cache:"no-store"}).then(function(r){ return r.json(); }).then(function(d){
+    if (d.b64) { imgCache[name] = "data:" + (d.mime || "image/png") + ";base64," + d.b64; el.src = imgCache[name]; }
+  }).catch(function(){});
+}
 function drawImages(s){
   var box = document.getElementById("images");
   if (!s.images.length) { box.innerHTML = '<div class="hint">No pictures yet.</div>'; return; }
   var h = "";
-  s.images.forEach(function(n){
-    h += '<div class="pic"><img src="/image?name=' + encodeURIComponent(n) + '&v=' + s.build + '" alt="">'
+  s.images.forEach(function(n, i){
+    h += '<div class="pic"><img data-img="' + i + '" alt="">'
       + '<div class="name" title="' + esc(n) + '">' + esc(n) + '</div>'
       + '<button class="icon" data-a="findtest" data-name="' + esc(n) + '" title="find it on the screen now and move the mouse there">find</button>'
       + '<button class="icon danger" data-a="trashimage" data-name="' + esc(n) + '" title="move to the trash folder">' + (armed["img:" + n] ? 'sure?' : '🗑') + '</button></div>';
   });
   box.innerHTML = h;
+  s.images.forEach(function(n, i){ var el = box.querySelector('[data-img="' + i + '"]'); if (el) loadThumb(n, el); });
 }
 
 function drawPlayback(s){
@@ -685,13 +693,21 @@ local function handle(method, path, headers, body)
         local okE, txt = pcall(hs.json.encode, { images = M.listImages() })
         return reply(okE and txt or '{"images":[]}')
     end
-    if path:sub(1, 6) == "/image" then
+    -- A PICTURE AS BASE64, NOT AS BINARY. hs.httpserver turns the response
+    -- body into a UTF-8 NSString; binary PNG bytes are not valid UTF-8, the
+    -- conversion returns nil, and the server crashes Hammerspoon with a bad
+    -- access in objc_retain (it took the whole app down, 5.9.2026). So the
+    -- bytes go out as base64 inside a JSON string, always valid UTF-8, and the
+    -- page shows them with a data: URI.
+    if path:sub(1, 10) == "/imagedata" then
         local name = query(path, "name") or ""
-        if name:find("/", 1, true) or name:find("..", 1, true) then return reply("no", 404, "text/plain") end
+        if name:find("/", 1, true) or name:find("..", 1, true) then return reply('{"error":"no"}', 404) end
         local f = io.open(M.imgDir .. "/" .. name, "rb")
-        if not f then return reply("no such picture", 404, "text/plain") end
+        if not f then return reply('{"error":"no such picture"}', 404) end
         local bytes = f:read("a"); f:close()
-        return bytes, 200, { ["Content-Type"] = name:match("%.png$") and "image/png" or "image/jpeg", ["Cache-Control"] = "no-store" }
+        local mime = name:match("%.png$") and "image/png" or "image/jpeg"
+        local okE, txt = pcall(hs.json.encode, { name = name, mime = mime, b64 = hs.base64.encode(bytes) })
+        return reply(okE and txt or '{"error":"cannot encode"}')
     end
     if path:sub(1, 6) == "/state" then
         local ok, txt = pcall(hs.json.encode, state())
@@ -725,7 +741,17 @@ local function startServer()
     local srv = hs.httpserver.new(false, false)
     srv:setPort(PORT)
     if not M.settings.lan then srv:setInterface("localhost") end
-    srv:setCallback(handle)
+    -- A THROW MUST NOT REACH THE SERVER. An error out of the callback can crash
+    -- Hammerspoon (it took the whole app down once); catch it and answer 500 so
+    -- one bad request never kills the machine.
+    srv:setCallback(function(method, path, hdrs, body)
+        local ok, a, b, c = pcall(handle, method, path, hdrs, body)
+        if ok then
+            if type(a) ~= "string" then a = tostring(a or "") end
+            return a, b or 200, c or { ["Content-Type"] = "text/plain" }
+        end
+        return "server error: " .. tostring(a), 500, { ["Content-Type"] = "text/plain" }
+    end)
     local ok = pcall(function() srv:start() end)
     if not ok then M.say("the settings page could not take port " .. PORT, GREY, 4); return false end
     P.server = srv
