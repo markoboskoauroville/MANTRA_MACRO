@@ -145,3 +145,33 @@
 31. **Bottom middle, not the corner.** His request 6.9.2026 for the macro recorder: every status
     line and the search spinner are centred along the bottom edge, a little above it to clear the
     Dock, rather than in the bottom-right corner the other apps use.
+## The Swift app (30.10.2026)
+
+32. **One thread per run replaces the coroutine.** The player runs the script on its own thread; Sleep
+    sleeps that thread in hundredths of a second and checks the stop flag; every host call throws
+    `ScriptStopped` once the stop key is pressed; the interpreter calls `sleep(0)` every four hundred
+    statements, so a loop with no Sleep still stops. The search for a picture runs on the same thread,
+    so the main thread stays free and the spinner turns without any await marker.
+
+33. **The eye without OpenCV.** find.py's method kept: grey copies, a coarse pass on the screen
+    downscaled to 1600 px (smaller still when the picture is big, so the pass stays near a tenth of a
+    second), the correlation by `vImageConvolve_PlanarF` with the zero-mean picture as the kernel
+    (vImage does not flip it; its centre sits on the output pixel), normalised by integral images, then
+    the candidate verified at full resolution within one coarse step around it. Measured 30.10.2026 on
+    the BenQ (2560×1440) and the MacBook (3024×1964): exact place, score 1.0, 0.05–0.11 s; a picture at
+    half size (cut on a 1× screen) found by the 2.0 scale at the exact place. A flat patch (all black)
+    has no variance and is never "found", as with OpenCV.
+
+34. **The same words as Lua, proved.** `last.json` (376 events) written down by the Swift
+    `Script.fromEvents` gives exactly the `last.ahk` Lua wrote, byte for byte; all 8 kept recordings
+    convert and parse. The key names come from the current layout (UCKeyTranslate), as hs.keycodes did.
+
+35. **Lua wrote an empty table as `[]`.** settings.json had `"slots": []` and `"zones": []`; the Swift
+    reader takes a dictionary or nothing, never fails on the array, and writes `{}` back.
+
+36. **Carbon hot keys need no permission; recording does.** The chords are `RegisterEventHotKey`; the
+    recording is a listen-only `CGEventTap` (Input Monitoring); playing posts `CGEvent`s (Accessibility);
+    the eye is ScreenCaptureKit (Screen Recording). Each is asked the first time it is used.
+
+37. **Catching a new chord lets every chord go first.** A chord that is already a hot key is swallowed
+    by its own binding before the window sees it; the capture unbinds all, then binds again when done.

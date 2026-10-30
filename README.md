@@ -2,7 +2,16 @@
 
 **Records what Marko does and writes it down as a script he can read and edit. Ten slots on the
 digit keys, every key his own, a script editor that suggests the next command, and an eye that
-finds a button on the screen from a picture of it. Started only from the double star menu.**
+finds a button on the screen from a picture of it. Since 30.10.2026 a Swift app,
+`/Applications/Macro Recorder (Mantra).app`, opened from its row in the star.**
+
+Marko, 30.10.2026: "please convert the app open on the MacBook Display Recorder to a Swift app". The
+Lua under Hammerspoon (macro.lua, script.lua, slots.lua, settings_page.lua, editor_page.lua, find.py)
+became one Swift app in `app/`, with the same folder, the same settings.json, the same `.ahk` macros
+and the same keys. The page on :8829 is now the app's window; the editor and the language are windows
+of their own; the eye is Swift (ScreenCaptureKit and a template match with Accelerate), so it needs no
+Python and no OpenCV. The Lua files stay in the repository until Marko has played his own macros with
+the Swift app; nothing loads them any more.
 
 Marko's requests, 4.9.2026 and 5.9.2026: "It records everything I'm doing and repeating.
 Control+Option+Command+R records, P plays." · "Option 1 to 0 loads a stored macro, Control 1 to 0
@@ -70,8 +79,8 @@ after a WaitImage a Click); inside `{` the key names; inside the quotes of an im
 pictures in the folder; elsewhere the functions, the `A_` variables and the names the script has
 assigned. A panel on the right lists every command with its shape and one line of what it does; click
 to insert. ⌘S saves, ⌘↩ saves and runs, Check parses without running. An error names its line and
-lights it; a script that fails while running reports its line on the page too. Offline, without the
-editor library, the plain text box and the panel still work.
+lights it; a script that fails while running reports its line in the window too. ⌥⎋ (or Esc in the
+menu's Complete) asks for the suggestions at any place.
 
 ## The eye
 
@@ -106,47 +115,48 @@ recorded or written, lands in the first free slot by itself. On the page each sl
 now), ▲ ▼ (swap with the neighbour), × (empty it), and the rows drag to reorder. A slot whose macro
 was renamed or removed in the Finder says "not in the folder" rather than pretending.
 
-## The settings page
+## The window
 
-```
-http://127.0.0.1:8829
-```
+One window, resizable, opened from the star's row or the settings key ⌃⌥⌘M (which also closes it).
+The first row is MACRO RECORDER  ON  OFF with ✕ at the far right: OFF lets go of every key and quits,
+✕ closes only the window and the keys keep working. Top to bottom: the transport with a readout (RECORD,
+PLAY, STOP, "Record new", "Write new"), the slots, the macros (click a name to rename it, a digit puts
+it in that slot, ▶, LOAD, EDIT, BIN), the pictures (Snap button, Snap & set zone, FIND, ZONE, ALL, BIN),
+the keys (CHANGE, then press the chord; the two slot chords as ⌃ ⌥ ⇧ ⌘ toggles), playback (speed,
+delay between clicks), the window and the folders, the language. QUIT at the bottom right, the version
+at the bottom left (a click opens the latest release). Words are the keys; green is on, grey off,
+amber the one in the player.
 
-One page, two ways in, from the star menu or ⌃⌥⌘M: a small floating window (the page with `?mini`,
-drawn tighter, nothing dropped) and a tab in the browser. Top to bottom: the transport with a readout,
-the slots, the macros (rename by clicking the name, a digit check mark per slot, Edit, the bin), the
-pictures, the keys, playback (speed divides every Sleep; delay between clicks puts them in one
-rhythm), the window (open small at start, keep on top, reachable from the phone) and the folder.
-
-The page is on this Mac only unless "reachable from the phone on this wifi" is on: it can press keys,
-so it is not left open to the network by default.
+The page and its server on :8829 are gone with the Lua: nothing listens on the network.
 
 ## Files
 
+    app/App.swift          the app: the window, the menu, ON / OFF, the version
+    app/Engine.swift       record (an event tap), play (the host the language runs on), the slots and the keys from
+                           the keyboard, pictures and zones, the status line and the spinner bottom middle
+    app/Script.swift       the language: lexer, parser, interpreter, Send strings, recording to script. Foundation only
+    app/Store.swift        the folder, settings.json, the ten slots, the macros on disk
+    app/Keys.swift         key names (Hammerspoon's, from the current layout), the global chords (Carbon), catching a chord
+    app/Eye.swift          the eye: a picture found on a screen shot, ScreenCaptureKit + Accelerate
+    app/Window.swift       the window (SwiftUI)
+    app/Editor.swift       the script editor and the language window
+    icon/make_icon.swift   the icon, drawn, with the version under it
+    build.sh               swiftc, the icon, signed "Mantra Apps", installed in /Applications
+    docs/SCRIPT.md         the language, shown in the language window (copied into the app)
+    tests/run_script_tests.sh  the language against a fake host, 55 checks, no app needed
+    tests/*.lua            the Lua tests of the Lua version, kept with it
+    ~/.mantra_macro/settings.json   speed, clickDelay, keys, slots, zones, window
+    ~/.mantra_macro/macros/         the macros, <name>.ahk
+    ~/.mantra_macro/images/         the pictures
+    ~/.mantra_macro/last.ahk        the plain last recording
+    ~/.mantra_macro/recordings/     the raw events of every recording, kept
+    ~/.mantra_macro/trash/          whatever the bin removed
+
+Build and test:
+
 ```
-macro.lua              record, the host the language runs on, keys, slots, the star's submenu
-script.lua             the language: lexer, parser, interpreter, Send strings, recording to script. Pure Lua
-slots.lua              the ten slots. Pure Lua
-settings_page.lua      the page, its server on 8829, the small window, the routes
-editor_page.lua        the script editor and the documentation page
-find.py                the eye: a picture found on a screen shot, with OpenCV
-docs/SCRIPT.md         the language, as served at /docs
-tests/test_schedule.lua the schedule, the keys, the names. lua5.4, no Hammerspoon
-tests/test_slots.lua   assign, move, swap, rename, remove, the hand-edited file
-tests/test_script.lua  the language against a fake host: every statement, Send, pictures, a recording as a script
-~/.mantra_macro/settings.json   speed, clickDelay, keys, slots, window
-~/.mantra_macro/macros/         the macros, <name>.ahk
-~/.mantra_macro/images/         the pictures
-~/.mantra_macro/last.ahk        the plain last recording
-~/.mantra_macro/recordings/     the raw events of every recording, kept
-~/.mantra_macro/trash/          whatever the page's bin removed
+sh tests/run_script_tests.sh && sh build.sh
 ```
 
-The star menu's switch is `apps/macro.lua` in MANTRA_STAR. It loads this file on a tick and stops it
-on the next: keys unbound, server down, window closed. Nothing runs until the box is ticked.
-
-Run the three tests before every commit:
-
-```
-lua5.4 tests/test_schedule.lua && lua5.4 tests/test_slots.lua && lua5.4 tests/test_script.lua
-```
+The star's row `macro` is `"kind": "app"` (STAR_SWIFT rows.json). A click on it opens the app; OFF in
+the window quits it.

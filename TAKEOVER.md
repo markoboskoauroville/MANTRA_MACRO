@@ -1,21 +1,13 @@
 # TAKEOVER: the macro recorder on a fresh Mac
 
-1. Hammerspoon installed with Accessibility (to post keys and clicks), Input Monitoring (to record
-   them) and Screen Recording (to look for pictures).
-2. `git clone https://github.com/markoboskoauroville/MANTRA_MACRO ~/Developer/MANTRA_MACRO`
-3. MANTRA_STAR installed as its own TAKEOVER says; its `apps/macro.lua` points at
-   `~/Developer/MANTRA_MACRO/macro.lua`. The Lua files here find each other by their own folder.
-4. Python 3 with OpenCV for the eye: `python3 -c "import cv2"` must work. The recorder uses
-   `~/.pyenv/versions/3.10.14/bin/python3` when it is there, else `python3` on the path.
-   `pip install opencv-python-headless numpy` if it is missing. Without it, ClickImage says so and
-   returns 0; everything else works.
-5. Open the star menu, tick Macro Recorder. The small settings window opens (switch that off on the
-   page if unwanted). ⌃⌥⌘R records, ⌃⌥⌘P plays, ⌥digit loads a slot, ⌃digit runs it, ⌃⌥⌘M the page.
-6. `lua5.4 tests/test_schedule.lua && lua5.4 tests/test_slots.lua && lua5.4 tests/test_script.lua`
-   proves the schedule, the keys, the slots and the whole language with no Hammerspoon at all.
-7. Port 8829 is the page. If something else holds it, the readout says so; change PORT in
-   settings_page.lua. The editor loads CodeMirror from cdnjs; offline, the plain box works.
+1. `git clone https://github.com/markoboskoauroville/MANTRA_MACRO ~/Developer/MANTRA_MACRO`
+2. The "Mantra Apps" signing certificate in the login keychain (MANTRA_MANIFEST modules/mac-app-signing.md).
+3. `sh tests/run_script_tests.sh && sh build.sh`: the language's 55 checks, then
+   `/Applications/Macro Recorder (Mantra).app`, signed, bundle id `community.auroville.macrorecorder`.
+4. Open it (from the star's row, or the Finder). Allow it, once, in System Settings → Privacy & Security:
+   **Accessibility** (to play clicks and keys), **Input Monitoring** (to record them; asked at the first
+   RECORD), **Screen Recording** (to look for pictures; asked at the first FIND or ClickImage).
+5. ⌃⌥⌘R records, ⌃⌥⌘P plays, ⌃⌥⌘. stops, ⌥digit loads a slot, ⌃digit runs it, ⌃⌥⌘M the window.
 
-Nothing starts by itself. Untick and the keys, the server and the window are gone.
-State is under `~/.mantra_macro/`; copy that folder to carry the macros, the pictures and the slots
-to another Mac.
+State is under `~/.mantra_macro/`; copy that folder to carry the macros, the pictures and the slots to
+another Mac. Nothing starts by itself: the star brings it back at login only if it was on.
