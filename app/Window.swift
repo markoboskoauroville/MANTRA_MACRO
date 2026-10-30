@@ -81,6 +81,10 @@ struct MainView: View {
             Word(text: "ON", color: .on, help: "The recorder listens to its keys") {}
             Word(text: "OFF", color: .off, help: "Stop it and quit", action: quit)
             Spacer()
+            // v3 (Marko, 30.10.2026): a permission missing, "Permissions" at the top right; a click opens its page
+            if !Permissions.state().all {
+                Word(text: "PERMISSIONS", color: .amber, help: "A permission is missing: this opens its page in System Settings") { Permissions.openMissing() }
+            }
             Button(action: close) { Image(systemName: "xmark").font(.system(size: 15, weight: .medium)).foregroundColor(.off).frame(width: 30, height: 30) }
                 .buttonStyle(.plain).focusable(false).help("Close the window (it stays ON)")
         }

@@ -455,6 +455,11 @@ enum Permissions {
         let s = CGPreflightScreenCaptureAccess()
         return (a, i, s, a && i && s)
     }
+    // the page of the first permission still missing
+    static func openMissing() {
+        let p = state()
+        ask(!p.access ? "Accessibility" : !p.screen ? "ScreenCapture" : "ListenEvent")
+    }
     // asks once through the system (which adds the app to the list), then opens the page itself
     static func ask(_ pane: String) {
         switch pane {

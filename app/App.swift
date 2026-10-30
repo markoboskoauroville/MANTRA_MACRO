@@ -8,10 +8,12 @@
 // v1 (30.10.2026): the conversion.
 // v2 (30.10.2026, Marko: "open permissions for screen capture or whatever is missing"): a PERMISSIONS section, and
 // Screen Recording asked at start when it is missing (never at login).
+// v3 (30.10.2026, Marko: "If permissions are not set, it needs to have text in the top right: Permissions"): PERMISSIONS
+// in amber at the top right while one is missing; a click opens that page in System Settings.
 import AppKit
 import SwiftUI
 
-let VERSION = 2
+let VERSION = 3
 let RELEASES = "https://github.com/markoboskoauroville/MANTRA_MACRO/releases/latest"
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
