@@ -16,3 +16,8 @@ permission (and anything else missing) is asked for. **Status:** done 30.10.2026
 `community.auroville.star.tint` (red / green / white, proven by capturing the star in each). Macro Recorder v2: a
 PERMISSIONS section (Accessibility, Input Monitoring, Screen Recording, each with OPEN), Screen Recording asked at start;
 System Settings opened on Screen & System Audio Recording for Marko's switch.
+
+## 30.10.2026, 09:45: "Permissions" top right in every app, and the two "2.1"
+> "permission is set, and please make this in every application that needs some permission. If permissions are not set, it needs to have text in the top right: "Permissions." Then I click on it, and it opens me directly to my settings page where I need to set permissions. Please open that setting for recording. You can confirm that I did the permission, but there are some things that are confusing you. You were doing something. There is 2.1, two times. What is that 2.1? Can we delete this"
+
+**Status:** in progress.
