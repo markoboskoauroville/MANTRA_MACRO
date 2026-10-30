@@ -5,6 +5,7 @@
 // throw, so a loop with no Sleep is still stopped (the interpreter calls sleep(0) every few hundred statements).
 import AppKit
 import Combine
+import IOKit.hid
 
 let REDC = NSColor(srgbRed: 0.95, green: 0.2, blue: 0.2, alpha: 1)
 let GREENC = NSColor(srgbRed: 0x33/255.0, green: 0xD1/255.0, blue: 0x7A/255.0, alpha: 1)
@@ -442,6 +443,27 @@ final class Engine: ObservableObject {
         changed()
     }
     func resetKeys() { settings.resetKeys(); bindKeys(); say("keys back to the defaults", GREYC, 1.6); changed() }
+}
+
+// MARK: the three permissions: what is allowed, and the way to the page that allows the rest
+
+enum Permissions {
+    static func state() -> (access: Bool, input: Bool, screen: Bool, all: Bool) {
+        let a = AXIsProcessTrusted()
+        // a listen-only tap is allowed with Accessibility too (measured 30.10.2026: the recording worked with only that)
+        let i = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted || a
+        let s = CGPreflightScreenCaptureAccess()
+        return (a, i, s, a && i && s)
+    }
+    // asks once through the system (which adds the app to the list), then opens the page itself
+    static func ask(_ pane: String) {
+        switch pane {
+        case "ScreenCapture": _ = CGRequestScreenCaptureAccess()
+        case "ListenEvent": _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+        default: _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+        }
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_" + pane)!)
+    }
 }
 
 // MARK: the host the language runs on

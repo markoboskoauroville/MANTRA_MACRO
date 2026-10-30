@@ -60,7 +60,7 @@ struct MainView: View {
         GeometryReader { g in
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
-                    top; transport; slots; macros; pictures; keys; playback; window; foot
+                    top; transport; permissions; slots; macros; pictures; keys; playback; window; foot
                 }
                 .frame(width: max(300, g.size.width - 28), alignment: .leading).clipped()
                 .padding(14)
@@ -125,7 +125,30 @@ struct MainView: View {
         }
     }
 
-    // MARK: the slots
+    // MARK: the permissions (v2, 30.10.2026, Marko: "open permissions for screen capture or whatever is missing")
+
+    func perm(_ name: String, _ ok: Bool, _ what: String, _ pane: String) -> some View {
+        HStack(spacing: 8) {
+            Circle().fill(ok ? Color.on : Color.amber).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name).font(.system(size: 12, weight: .bold, design: .monospaced)).foregroundColor(ok ? .on : .amber)
+                Text(ok ? what : what + ": not allowed yet").font(.system(size: 10)).foregroundColor(.off).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            Word(text: ok ? "ALLOWED" : "OPEN", color: ok ? .off : .amber, help: "System Settings → Privacy & Security") {
+                Permissions.ask(pane)
+            }
+        }
+    }
+    var permissions: some View {
+        let p = Permissions.state()
+        return Section(title: "PERMISSIONS", hint: p.all ? "" : "OPEN takes you to the page in System Settings; switch Macro Recorder (Mantra) on there. The window notices by itself.") {
+            perm("ACCESSIBILITY", p.access, "plays the clicks and keys", "Accessibility")
+            perm("INPUT MONITORING", p.input, "records the keys and clicks", "ListenEvent")
+            perm("SCREEN RECORDING", p.screen, "finds a button from its picture", "ScreenCapture")
+        }
+    }
+
 
     var slots: some View {
         let L = modsLabel(s.loadMods), R = modsLabel(s.runMods)

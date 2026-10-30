@@ -6,15 +6,18 @@
 // the editor and the language are windows of their own. The first row is MACRO RECORDER  ON  OFF with the ✕ far right
 // (swift-apps.md): OFF lets go of the keys and quits, ✕ closes the window only and the keys keep working.
 // v1 (30.10.2026): the conversion.
+// v2 (30.10.2026, Marko: "open permissions for screen capture or whatever is missing"): a PERMISSIONS section, and
+// Screen Recording asked at start when it is missing (never at login).
 import AppKit
 import SwiftUI
 
-let VERSION = 1
+let VERSION = 2
 let RELEASES = "https://github.com/markoboskoauroville/MANTRA_MACRO/releases/latest"
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     let e = Engine.shared
+    var lastPerm: String?
 
     func applicationDidFinishLaunching(_ n: Notification) {
         mainMenu()
@@ -25,6 +28,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the recorder posts clicks and keys (Accessibility); at login it does not ask (swift-apps.md, login is silent)
         _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: !atLogin] as CFDictionary)
         if !atLogin && e.settings.autoSmall { show() }
+        if !atLogin && !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+        // the window notices a permission switched on in System Settings within two seconds
+        Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            let p = Permissions.state(), k = "\(p.access)\(p.input)\(p.screen)"
+            if k != self?.lastPerm { self?.lastPerm = k; self?.e.changed() }
+        }
     }
     func applicationShouldHandleReopen(_ s: NSApplication, hasVisibleWindows: Bool) -> Bool { show(); return true }
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { false }

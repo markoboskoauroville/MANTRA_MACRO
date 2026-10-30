@@ -12,4 +12,7 @@ Left: Screen Recording at the first FIND; the star's red/green tint; the Lua fil
 > "yes, do that to the startup. Let it be red and open permissions for screen capture or whatever is missing"
 
 The star turns red while a macro records (and green while one plays, as the Lua star did); the Screen Recording
-permission (and anything else missing) is asked for. **Status:** in progress.
+permission (and anything else missing) is asked for. **Status:** done 30.10.2026. Star (Mantra) v7 listens to
+`community.auroville.star.tint` (red / green / white, proven by capturing the star in each). Macro Recorder v2: a
+PERMISSIONS section (Accessibility, Input Monitoring, Screen Recording, each with OPEN), Screen Recording asked at start;
+System Settings opened on Screen & System Audio Recording for Marko's switch.

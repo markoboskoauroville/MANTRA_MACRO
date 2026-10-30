@@ -175,3 +175,10 @@
 
 37. **Catching a new chord lets every chord go first.** A chord that is already a hot key is swallowed
     by its own binding before the window sees it; the capture unbinds all, then binds again when done.
+
+38. **The star's colour is a distributed notification.** The app posts `community.auroville.star.tint` with "red",
+    "green" or "" and Star (Mantra) v7 redraws its sign in that colour. Proven by capturing the star's own status
+    window (`screencapture -l <id>`) after each signal; the star sits on the BenQ's menu bar, the main display.
+
+39. **Input Monitoring was never asked.** The listen-only tap recorded with Accessibility alone (30.10.2026), so the
+    window counts Input Monitoring as allowed when Accessibility is. Screen Recording is the one the eye needs.
