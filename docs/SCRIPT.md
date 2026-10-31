@@ -211,6 +211,10 @@ MsgBox o["name"]
 
 - `WinActivate "Google Chrome"` brings the app to the front. `WinExist("Google Chrome")` is 1
   when it is open. `WinWaitActive "Google Chrome", , 10` brings it forward and waits up to ten seconds.
+- `MenuSelect "DaVinci Resolve", , "Fairlight", "Presets Library"` presses that menu item of the app (Accessibility;
+  `…` and `...` both match, a name may be the start of the item's name). An error when the item is not there.
+- `WinGetPos &x, &y, &w, &h, "Presets Library"` puts a window's top left and size into the variables: a window whose
+  title contains the text, else the app's biggest window. Then `Click x + 66, y + 100` clicks relative to it.
 - `Run "https://example.com"` opens an address; `Run "Safari"` opens an app; `Run "/path/file"` a file.
 - `MsgBox "text"` and `ToolTip "text"` show a line at the bottom middle of the screen, for a moment.
 - `FileExist("/path")`, `FileRead("/path")`, `FileAppend "text", "/path"`.
