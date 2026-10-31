@@ -29,3 +29,9 @@ System Settings opened on Screen & System Audio Recording for Marko's switch.
 The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row of every app: ON OFF … TOP ✕": ON, OFF, the name, TOP (always on top, remembered in UserDefaults `onTop`), ✕; each an Accessibility button (`off`, `top`, `close`).
 
 **Status:** done, built v4 31.10.2026: TOP on the first row between the gap and PERMISSIONS/✕, green = the window floats above every other; it uses the app's own setting onTop in ~/.mantra_macro/settings.json (already there and applied at launch), so KEEP ON TOP in WINDOW AND FOLDER went (the same switch twice), and QUIT at the bottom went (swift-apps.md No QUIT; OFF quits, now after answering the press). Every word carries an Accessibility identifier (on, off, top, close, …). Checked at the minimum width 380 by a window capture (nothing cut or overlapping) and TOP pressed through AX twice (window layer 3, then 0). Relaunched: no REC/PLAY note on screen, v3 quit through its Quit menu item (AX), v4 opened with --login, window closed again
+
+## 31.10.2026 (Elevate Media session)
+
+> Please don't use Hammerspoon anymore. We have application called Macro Recorder. If it cannot do something, you need to improve it. And we are not using Hammerspoon because Macro Recorder is now your ally.
+
+- v5: an inbox so Claude Code runs scripts and macros through the app (`macro run <name>`, `macro do <script>`), result written back. **Status:** doing
