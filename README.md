@@ -34,6 +34,9 @@ Send "{Space}"'
 macro do - < script.ahk
 ```
 
+v6 (31.10.2026) added the two commands those scripts needed most: `MenuSelect` (an app's menu item by its names,
+through Accessibility) and `WinGetPos` (a window's position and size, so clicks are relative to the window).
+
 ## The keys, as they come
 
 ```

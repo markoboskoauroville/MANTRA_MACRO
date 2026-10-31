@@ -182,3 +182,12 @@
 
 39. **Input Monitoring was never asked.** The listen-only tap recorded with Accessibility alone (30.10.2026), so the
     window counts Input Monitoring as allowed when Accessibility is. Screen Recording is the one the eye needs.
+
+## 31.10.2026: the Macro Recorder becomes Claude's hand (v5, v6)
+
+- Marko stopped Hammerspoon for all clicks and keys: a `hs` call timed out between mouse-down and mouse-up and dragged a
+  clip in DaVinci Resolve. The app now has an inbox (`~/.mantra_macro/inbox`, `tools/macro`), one script at a time,
+  answered in a result file: a timeout can no longer leave a button held.
+- Qt menus (Resolve) open a submenu only after slow real mouse-moves along the row (60 ms steps); `MenuSelect` through
+  Accessibility avoids that altogether for the menu bar.
+- Dialogs: click relative to the dialog's own window (`WinGetPos`), not to the main window's centre; the offsets moved.
