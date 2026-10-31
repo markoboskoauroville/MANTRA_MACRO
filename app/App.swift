@@ -10,10 +10,13 @@
 // Screen Recording asked at start when it is missing (never at login).
 // v3 (30.10.2026, Marko: "If permissions are not set, it needs to have text in the top right: Permissions"): PERMISSIONS
 // in amber at the top right while one is missing; a click opens that page in System Settings.
+// v4 (31.10.2026, Marko: "Each needs to have the same user interface elements. On, off and top."): TOP on the first
+// row (the window above every other, the setting "onTop" it already had, applied at launch); KEEP ON TOP and QUIT go
+// (TOP and OFF do the same; swift-apps.md "No QUIT"); every word an Accessibility button with a fixed identifier.
 import AppKit
 import SwiftUI
 
-let VERSION = 3
+let VERSION = 4
 let RELEASES = "https://github.com/markoboskoauroville/MANTRA_MACRO/releases/latest"
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -47,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func buildWindow() {
         let view = MainView(close: { [weak self] in self?.window.performClose(nil) },
-                            quit: { NSApp.terminate(nil) },
+                            quit: { DispatchQueue.main.async { NSApp.terminate(nil) } },
                             edit: { EditorWindow.show($0) },
                             docs: { DocsWindow.show() })
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 760), styleMask: [.titled, .closable, .miniaturizable, .resizable],

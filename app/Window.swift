@@ -1,6 +1,6 @@
 // Window.swift: the settings window, what the page on :8829 was, top to bottom: the transport, the slots, the macros,
 // the pictures, the keys, playback, the window, the folder. One window, resizable, the page as wide as the window
-// (swift-apps.md "Never cut text"). The first row is MACRO RECORDER  ON  OFF with the ✕ far right; QUIT bottom right.
+// (swift-apps.md "Never cut text"). The first row is MACRO RECORDER  ON  OFF … TOP (PERMISSIONS) ✕ (v4, 31.10.2026).
 import SwiftUI
 import AppKit
 
@@ -17,13 +17,15 @@ extension Color {
 
 // a key is its word; its colour is its state
 struct Word: View {
-    let text: String; var color: Color = .sand; var size: CGFloat = 12; var help = ""
+    let text: String; var color: Color = .sand; var size: CGFloat = 12; var help = ""; var ax: String? = nil
     let action: () -> Void
     var body: some View {
         Button(action: action) {
             Text(text).font(.system(size: size, weight: .bold, design: .monospaced)).foregroundColor(color)
                 .padding(.horizontal, 4).padding(.vertical, 3).contentShape(Rectangle())
         }.buttonStyle(.plain).focusable(false).help(help)
+        // v4: a fixed identifier for every word, so a script finds it (MANTRA_MANIFEST swift-apps.md)
+        .accessibilityIdentifier(ax ?? text.lowercased().replacingOccurrences(of: " ", with: "-"))
     }
 }
 
@@ -81,12 +83,19 @@ struct MainView: View {
             Word(text: "ON", color: .on, help: "The recorder listens to its keys") {}
             Word(text: "OFF", color: .off, help: "Stop it and quit", action: quit)
             Spacer()
+            // v4 (Marko, 31.10.2026: "On, off and top"): TOP, green = the window stays above every other window
+            Word(text: "TOP", color: s.onTop ? .on : .off, help: "Always on top: green, the window stays above every other window", ax: "top") {
+                s.onTop.toggle(); s.save(); e.changed()
+                NSApp.windows.first { $0.title == "Macro Recorder (Mantra)" }?.level = s.onTop ? .floating : .normal
+            }
+            .accessibilityValue(s.onTop ? "on" : "off")
             // v3 (Marko, 30.10.2026): a permission missing, "Permissions" at the top right; a click opens its page
             if !Permissions.state().all {
                 Word(text: "PERMISSIONS", color: .amber, help: "A permission is missing: this opens its page in System Settings") { Permissions.openMissing() }
             }
             Button(action: close) { Image(systemName: "xmark").font(.system(size: 15, weight: .medium)).foregroundColor(.off).frame(width: 30, height: 30) }
                 .buttonStyle(.plain).focusable(false).help("Close the window (it stays ON)")
+                .accessibilityLabel("Close window").accessibilityIdentifier("close")
         }
     }
 
@@ -317,10 +326,6 @@ struct MainView: View {
         Section(title: "WINDOW AND FOLDER") {
             HStack(spacing: 8) {
                 Word(text: "OPEN AT START", color: s.autoSmall ? .on : .off, help: "the window opens when the app starts (not at login)") { s.autoSmall.toggle(); s.save(); e.changed() }
-                Word(text: "KEEP ON TOP", color: s.onTop ? .on : .off) {
-                    s.onTop.toggle(); s.save(); e.changed()
-                    NSApp.windows.first { $0.title == "Macro Recorder (Mantra)" }?.level = s.onTop ? .floating : .normal
-                }
             }
             HStack(spacing: 8) {
                 Word(text: "MACROS FOLDER") { mkdirs(MAC_DIR); NSWorkspace.shared.open(URL(fileURLWithPath: MAC_DIR)) }
@@ -334,7 +339,6 @@ struct MainView: View {
             Button("v\(VERSION)") { NSWorkspace.shared.open(URL(string: RELEASES)!) }.buttonStyle(.plain)
                 .font(.system(size: 10)).foregroundColor(.off.opacity(0.6))
             Spacer()
-            Word(text: "QUIT", color: .rec, help: "End the Macro Recorder", action: quit)
         }
     }
 }
