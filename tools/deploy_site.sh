@@ -7,6 +7,8 @@ V=$(sed -n 's/^let VERSION = \([0-9]*\)/\1/p' app/App.swift)
 [ -f "build/MantraMacroRecorder-$V.dmg" ] || { echo "no build/MantraMacroRecorder-$V.dmg: run build.sh and tools/make_dmg.sh"; exit 1; }
 rm -f site/public/MantraMacroRecorder-*.dmg; cp "build/MantraMacroRecorder-$V.dmg" site/public/
 grep -q "MantraMacroRecorder-$V.dmg" site/public/index.html || { echo "index.html does not link MantraMacroRecorder-$V.dmg"; exit 1; }
+# every page with the donation bowl is search-engine optimised (Marko, 31.10.2026)
+python3 ~/Developer/MANTRA_MANIFEST/kits/seo/seo_app_page.py site/public --url https://mantramacrorecorder.pages.dev --name "Mantra Macro Recorder" --version "$V" --download "MantraMacroRecorder-$V.dmg" --keywords "macro recorder mac, AutoHotkey for Mac, mouse recorder, keyboard macro, automation macOS, free macro app" --image shot-window.png
 eval "$(python3 - <<'PY'
 import re,os
 raw=open(os.path.expanduser('~/Downloads/API/Cloudflare.api.txt')).read()
