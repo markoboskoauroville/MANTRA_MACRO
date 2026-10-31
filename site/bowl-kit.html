@@ -1,0 +1,86 @@
+<!-- THE MANTRA PAYMENT GATEWAY, the donation bowl (MANTRA_MANIFEST modules/donation-bowl.md, payment-links.md).
+     Step 1, on the page: only the title and the Tibetan bowl (a photoreal Nano Banana Pro render).
+     Step 2, after a tap: the bowl rings (a singing bowl synthesised in the browser, nothing downloaded), fades away, and
+     the giving panel takes its place: a "Give with Revolut" button, his Revolut QR code, a way back to the bowl.
+     Paste this block into the page; put tibetan-bowl.jpg and revolut-qr.png in the page's img/ folder.
+     Self-contained: its own styles (scoped to .mantra-bowl) and script; no library, no tracking. -->
+<section class="mantra-bowl" data-revolut="https://revolut.me/mbosko0612" aria-label="Support Marko Mantra">
+  <style>
+    .mantra-bowl { --brass: #f3c97a; --glow: rgba(255, 196, 120, .45); --card: #292c2f; text-align: center; padding: 64px 16px; }
+    .mantra-bowl h2 { margin: 0 0 26px; }
+    .mantra-bowl .stage { position: relative; display: grid; place-items: center; min-height: 380px; aspect-ratio: auto; background: none; overflow: visible; border-radius: 0; }
+    .mantra-bowl .stage > * { grid-area: 1 / 1; transition: opacity .9s ease, transform .9s ease; }
+    .mantra-bowl .bowl { background: none; border: 0; padding: 0; cursor: pointer; position: relative; color: inherit; font: inherit; -webkit-tap-highlight-color: transparent; }
+    .mantra-bowl .bowl:focus-visible { outline: 2px solid var(--brass); outline-offset: 8px; border-radius: 24px; }
+    .mantra-bowl .bowl img { width: min(360px, 82vw); height: auto; display: block; border-radius: 24px; transition: transform .4s ease, filter .4s ease; }
+    .mantra-bowl .hint { display: block; margin-top: 16px; font-size: 15px; letter-spacing: .06em; opacity: .75; }
+    .mantra-bowl .bowl:hover img { transform: translateY(-3px); filter: brightness(1.08); }
+    .mantra-bowl .ring { position: absolute; left: 50%; top: 36%; width: 60%; aspect-ratio: 3 / 1; border: 2px solid var(--glow); border-radius: 50%;
+      transform: translate(-50%, -50%) scale(.6); opacity: 0; pointer-events: none; }
+    .mantra-bowl.ringing .ring { animation: mantra-bowl-ring 2.4s ease-out forwards; }
+    .mantra-bowl.ringing .ring.r2 { animation-delay: .5s; }
+    .mantra-bowl.ringing .ring.r3 { animation-delay: 1s; }
+    @keyframes mantra-bowl-ring { 0% { opacity: .9; transform: translate(-50%, -50%) scale(.6); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } }
+    /* step 2: the bowl gives way to the panel */
+    .mantra-bowl.giving .bowl { opacity: 0; transform: scale(.94); pointer-events: none; }
+    .mantra-bowl .panel { opacity: 0; transform: translateY(14px); pointer-events: none; width: min(420px, 92vw); }
+    .mantra-bowl.giving .panel { opacity: 1; transform: none; pointer-events: auto; transition-delay: .35s; }
+    .mantra-bowl .give { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 18px 22px; border-radius: 999px;
+      background: linear-gradient(90deg, #f3c97a, #fff0c4, #f3c97a); color: #1a1206; font-weight: 700; font-size: 17px; text-decoration: none;
+      box-shadow: 0 0 30px var(--glow); box-sizing: border-box; }
+    .mantra-bowl .qr { margin: 22px auto 0; background: var(--card); border-radius: 22px; padding: 22px; width: min(260px, 70vw); box-sizing: border-box; }
+    .mantra-bowl .qr img { width: 100%; height: auto; display: block; }
+    .mantra-bowl .small { font-size: 14px; opacity: .7; margin: 14px 0 0; }
+    .mantra-bowl .back { background: none; border: 0; color: inherit; opacity: .6; font-size: 14px; margin-top: 18px; cursor: pointer; text-decoration: underline; }
+    @media (prefers-reduced-motion: reduce) { .mantra-bowl.ringing .ring { animation: none; } .mantra-bowl .stage > * { transition: none; } }
+  </style>
+  <h2>Put something in the bowl</h2>
+  <div class="stage">
+    <button type="button" class="bowl" aria-label="Ring the bowl to give">
+      <span class="ring"></span><span class="ring r2"></span><span class="ring r3"></span>
+      <img src="img/tibetan-bowl.jpg" alt="A Tibetan singing bowl on a red cushion, coins inside" width="900" height="900">
+      <span class="hint">Click on the bowl to donate</span>
+    </button>
+    <div class="panel" aria-hidden="true">
+      <a class="give" href="https://revolut.me/mbosko0612" target="_blank" rel="noopener">Give with Revolut →</a>
+      <p class="small">Any amount, by card or Revolut. No Revolut account needed. It goes straight to Marko.</p>
+      <div class="qr"><img src="img/revolut-qr.png" alt="Revolut QR code for @mbosko0612" width="620" height="760"></div>
+      <p class="small">On a computer? Scan it with your phone.</p>
+      <button type="button" class="back">back to the bowl</button>
+    </div>
+  </div>
+  <script>
+  (() => {
+    const box = document.currentScript.closest('.mantra-bowl');
+    const bowl = box.querySelector('.bowl'), panel = box.querySelector('.panel');
+    box.querySelector('.give').href = box.dataset.revolut;
+    // A singing bowl's voice: a low fundamental with inharmonic partials (about 1, 2.76, 5.4, 8.9 times), each a pair a
+    // few tenths of a hertz apart so the tone beats, a soft strike and a long fading hum.
+    function ring() {
+      const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+      const ac = new Ctx(), now = ac.currentTime, out = ac.createGain();
+      out.gain.value = 0.32; out.connect(ac.destination);
+      [[1, 1, 9], [2.76, .5, 6], [5.4, .25, 4], [8.93, .12, 2.5]].forEach(([k, amp, dur]) => {
+        [0, 0.6].forEach(detune => {
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.type = 'sine'; o.frequency.value = 196 * k + detune;
+          g.gain.setValueAtTime(0, now);
+          g.gain.linearRampToValueAtTime(amp / 2, now + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+          o.connect(g); g.connect(out); o.start(now); o.stop(now + dur + 0.1);
+        });
+      });
+      setTimeout(() => ac.close(), 10000);
+    }
+    bowl.addEventListener('click', () => {
+      ring();
+      box.classList.remove('ringing'); void box.offsetWidth; box.classList.add('ringing');
+      // the bowl sounds first, then gives way to the panel
+      setTimeout(() => { box.classList.add('giving'); panel.setAttribute('aria-hidden', 'false'); bowl.setAttribute('aria-hidden', 'true'); }, 1300);
+    });
+    box.querySelector('.back').addEventListener('click', () => {
+      box.classList.remove('giving', 'ringing'); panel.setAttribute('aria-hidden', 'true'); bowl.removeAttribute('aria-hidden');
+    });
+  })();
+  </script>
+</section>

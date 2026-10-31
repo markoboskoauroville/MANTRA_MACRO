@@ -16,19 +16,21 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 6
-let RELEASES = "https://github.com/markoboskoauroville/MANTRA_MACRO/releases/latest"
+let VERSION = 7
+let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     let e = Engine.shared
     var lastPerm: String?
+    var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ n: Notification) {
         mainMenu()
         e.start()
         e.openWindow = { [weak self] in self?.toggleWindow() }
         buildWindow()
+        menuBarIcon()
         let atLogin = CommandLine.arguments.contains("--login")
         // the recorder posts clicks and keys (Accessibility); at login it does not ask (swift-apps.md, login is silent)
         _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: !atLogin] as CFDictionary)
@@ -40,6 +42,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if k != self?.lastPerm { self?.lastPerm = k; self?.e.changed() }
         }
     }
+    // v7 (31.10.2026, released on its own, no longer opened from the star): an icon in the menu bar, red while it
+    // records and green while it plays, with the window, record, play and quit
+    func menuBarIcon() {
+        let si = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        si.button?.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Macro Recorder")
+        let m = NSMenu()
+        m.addItem(withTitle: "Open Macro Recorder", action: #selector(openFromMenu), keyEquivalent: "").target = self
+        m.addItem(withTitle: "Record / Stop (⌃⌥⌘R)", action: #selector(recordFromMenu), keyEquivalent: "").target = self
+        m.addItem(withTitle: "Play / Stop (⌃⌥⌘P)", action: #selector(playFromMenu), keyEquivalent: "").target = self
+        m.addItem(.separator())
+        m.addItem(withTitle: "Website and donations", action: #selector(siteFromMenu), keyEquivalent: "").target = self
+        m.addItem(withTitle: "Quit Macro Recorder", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        si.menu = m
+        statusItem = si
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            guard let s = self, let b = s.statusItem?.button else { return }
+            let tint: NSColor? = s.e.recording ? .systemRed : (s.e.playing ? .systemGreen : nil)
+            if b.contentTintColor != tint { b.contentTintColor = tint }
+        }
+    }
+    @objc func openFromMenu() { show() }
+    @objc func recordFromMenu() { e.toggleRecording() }
+    @objc func playFromMenu() { e.playing ? e.stopPlaying() : e.play() }
+    @objc func siteFromMenu() { NSWorkspace.shared.open(URL(string: RELEASES)!) }
+
     func applicationShouldHandleReopen(_ s: NSApplication, hasVisibleWindows: Bool) -> Bool { show(); return true }
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ n: Notification) { e.stop() }

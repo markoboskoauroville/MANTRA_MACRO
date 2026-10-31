@@ -37,6 +37,19 @@ macro do - < script.ahk
 v6 (31.10.2026) added the two commands those scripts needed most: `MenuSelect` (an app's menu item by its names,
 through Accessibility) and `WinGetPos` (a window's position and size, so clicks are relative to the window).
 
+## Released on its own (v7, 31.10.2026)
+
+Marko: *"Macro Recorder should have a website. Let's try to get some donations going ... make a nice installation file.
+Then let people use it. It is not part of the Start menu anymore. It is now released as an independent release."*
+
+- **Website:** https://mantramacrorecorder.pages.dev (`site/public`, deployed by `tools/deploy_site.sh`): what it does,
+  the download with its counter (`data-dl-app="macro"`), install steps (Open Anyway: it is signed "Mantra Apps", not
+  notarized), the keys, privacy, the donation bowl (Revolut), the visit counter, the Speechify line.
+- **Installer:** `tools/make_dmg.sh` → `build/MantraMacroRecorder-<v>.dmg`: the app (Apple Silicon + Intel), a shortcut to
+  Applications, "Read me first.txt", the app's icon on the volume.
+- **App:** an icon in the menu bar (red while recording, green while playing) with open, record, play, the website, quit;
+  the version link opens the website. The star's row is gone (STAR_SWIFT rows.json).
+
 ## The keys, as they come
 
 ```

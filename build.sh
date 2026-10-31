@@ -7,7 +7,10 @@ V=$(sed -n 's/^let VERSION = \([0-9]*\)/\1/p' app/App.swift)
 NAME="Macro Recorder (Mantra)"
 APP="build/$NAME.app"
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-swiftc -O -swift-version 5 -parse-as-library -o "$APP/Contents/MacOS/MacroRecorder" app/*.swift
+# one app for Apple Silicon and Intel (v7: released to everyone, 31.10.2026)
+swiftc -O -swift-version 5 -parse-as-library -target arm64-apple-macos14.0 -o build/MacroRecorder-arm64 app/*.swift
+swiftc -O -swift-version 5 -parse-as-library -target x86_64-apple-macos14.0 -o build/MacroRecorder-x86_64 app/*.swift
+lipo -create build/MacroRecorder-arm64 build/MacroRecorder-x86_64 -output "$APP/Contents/MacOS/MacroRecorder"
 # the icon carries the version (version-visible.md): drawn again at every build
 (cd icon && swift make_icon.swift "$V" >/dev/null)
 I=build/AppIcon.iconset; rm -rf $I; mkdir -p $I
