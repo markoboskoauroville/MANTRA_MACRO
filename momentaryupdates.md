@@ -46,4 +46,4 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 > Please make a website, and please make a nice installation file. Then let people use it.
 > It is not part of the Start menu anymore. It is now released as an independent release.
 
-- Website (Cloudflare Pages) with donations, a DMG installer, a public release; out of the star. **Status:** doing
+- Website https://mantramacrorecorder.pages.dev (bowl, counters, SEO), DMG v7, menu-bar icon, out of the star, card 16 on the bio. **Status:** done
