@@ -39,3 +39,11 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 > Please develop macro language. Copy macro language from AutoHotkey and build it inside this application. And then you need to write macros and this application will execute same as AutoHotkey.
 
 - The language is already AutoHotkey v2 (docs/SCRIPT.md); v5 lets Claude hand it scripts. Next: whatever a real macro needs and the language lacks gets added (e.g. WinGetPos for window-relative clicks). **Status:** ongoing
+
+## 31.10.2026 (evening)
+
+> Macro Recorder should have a website. Let's try to get some donations going for this application, Mantra Macro Recorder.
+> Please make a website, and please make a nice installation file. Then let people use it.
+> It is not part of the Start menu anymore. It is now released as an independent release.
+
+- Website (Cloudflare Pages) with donations, a DMG installer, a public release; out of the star. **Status:** doing
