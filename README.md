@@ -20,6 +20,20 @@ runs it; I assign any macro to any slot with check marks and reorder them in the
 user also learns AutoHotkey. If statements, loop statements, and all the other features." · "Load
 screenshots of the buttons, so the app can click by optical recognition of the patterns on my screen."
 
+## Claude Code drives the Mac through it (v5, 31.10.2026)
+
+Marko: *"Please don't use Hammerspoon anymore. We have application called Macro Recorder. If it cannot do something, you
+need to improve it."* Any script dropped as `~/.mantra_macro/inbox/<id>.ahk` runs at once (one at a time, never while
+recording) and its answer is written next to it as `<id>.result.json` (`{"ok":…, "message":…, "line":…}`). A file
+holding only `run: <name>` plays that stored macro. The command does both and waits:
+
+```
+macro run "Resolve - Voice Convert Render"
+macro do 'WinActivate "DaVinci Resolve"
+Send "{Space}"'
+macro do - < script.ahk
+```
+
 ## The keys, as they come
 
 ```

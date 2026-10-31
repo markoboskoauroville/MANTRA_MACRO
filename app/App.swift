@@ -16,7 +16,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 4
+let VERSION = 5
 let RELEASES = "https://github.com/markoboskoauroville/MANTRA_MACRO/releases/latest"
 
 final class AppDelegate: NSObject, NSApplicationDelegate {

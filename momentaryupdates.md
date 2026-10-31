@@ -34,4 +34,8 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 
 > Please don't use Hammerspoon anymore. We have application called Macro Recorder. If it cannot do something, you need to improve it. And we are not using Hammerspoon because Macro Recorder is now your ally.
 
-- v5: an inbox so Claude Code runs scripts and macros through the app (`macro run <name>`, `macro do <script>`), result written back. **Status:** doing
+- v5: an inbox so Claude Code runs scripts and macros through the app (`macro run <name>`, `macro do <script>`), result written back. **Status:** done, installed and tested
+
+> Please develop macro language. Copy macro language from AutoHotkey and build it inside this application. And then you need to write macros and this application will execute same as AutoHotkey.
+
+- The language is already AutoHotkey v2 (docs/SCRIPT.md); v5 lets Claude hand it scripts. Next: whatever a real macro needs and the language lacks gets added (e.g. WinGetPos for window-relative clicks). **Status:** ongoing

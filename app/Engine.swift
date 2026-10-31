@@ -32,12 +32,14 @@ final class Engine: ObservableObject {
         settings.load()
         if let c = settings.current { _ = loadMacro(c, quiet: true) }
         bindKeys()
+        Inbox.shared.start()
     }
     func stop() {
         if recording { stopRecording() }
         if playing { stopPlaying() }
         capture.stop()
         Hotkeys.shared.unbindAll()
+        Inbox.shared.stop()
         Overlay.shared.off(); Overlay.shared.spinKill()
     }
     func changed() { DispatchQueue.main.async { self.tick += 1 } }
@@ -260,11 +262,11 @@ final class Engine: ObservableObject {
     let host = MacHost()
     var runId = 0
 
-    func runScript(_ t: String, _ name: String) {
+    func runScript(_ t: String, _ name: String, done: ((Bool, String?, Int?) -> Void)? = nil) {
         if playing { stopPlaying() }
         switch Script.parse(t) {
         case .failure(let e):
-            lastError = (name, e.line, e.text); say(e.text, GREYC, 4)
+            lastError = (name, e.line, e.text); say(e.text, GREYC, 4); done?(false, e.text, e.line)
         case .success(let prog):
             runId += 1
             let id = runId
@@ -279,6 +281,7 @@ final class Engine: ObservableObject {
                     guard self.runId == id else { return }
                     let stopped = self.host.stopped
                     self.stopPlaying()
+                    done?(r.ok, r.ok ? nil : (stopped ? "stopped" : (r.message ?? "error")), r.line)
                     if r.ok { self.say("done: " + name, GREYC, 1.2) }
                     else if !stopped {
                         self.lastError = (name, r.line, r.message ?? "error")
