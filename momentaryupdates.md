@@ -21,3 +21,11 @@ System Settings opened on Screen & System Audio Recording for Marko's switch.
 > "permission is set, and please make this in every application that needs some permission. If permissions are not set, it needs to have text in the top right: "Permissions." Then I click on it, and it opens me directly to my settings page where I need to set permissions. Please open that setting for recording. You can confirm that I did the permission, but there are some things that are confusing you. You were doing something. There is 2.1, two times. What is that 2.1? Can we delete this"
 
 **Status:** in progress.
+
+## 31.10.2026: ON, OFF and TOP in every application
+
+> "Please go to all the interface of my applications. Each needs to have the same user interface elements. On, off and top. Please build it in every application." (Marko, 31.10.2026)
+
+The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row of every app: ON OFF … TOP ✕": ON, OFF, the name, TOP (always on top, remembered in UserDefaults `onTop`), ✕; each an Accessibility button (`off`, `top`, `close`).
+
+**Status:** pending
