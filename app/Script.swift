@@ -44,6 +44,8 @@ protocol ScriptHost: AnyObject {
     func run(_ what: String)
     func activate(_ title: String) -> Bool
     func winExists(_ title: String) -> Bool
+    func menuSelect(_ title: String, _ path: [String]) -> Bool
+    func winGetPos(_ title: String) -> (Double, Double, Double, Double)?
     func clipboard() -> String
     func setClipboard(_ v: String)
     func screen() -> (Double, Double)
@@ -849,6 +851,8 @@ enum Script {
         ("PixelGetColor",  "PixelGetColor(x, y)",                     "The colour at x, y as \"0xRRGGBB\"."),
         ("WinActivate",    "WinActivate \"Google Chrome\"",             "Bring the app with that name to the front."),
         ("WinExist",       "WinExist(\"Google Chrome\")",               "1 when an app or window with that name is open."),
+        ("MenuSelect",     "MenuSelect \"DaVinci Resolve\", , \"Fairlight\", \"Presets Library\"", "Press a menu item of that app by its names (… or ... both match)."),
+        ("WinGetPos",      "WinGetPos &x, &y, &w, &h, \"DaVinci Resolve\"", "The window's top left corner and size: click relative to it."),
         ("WinWaitActive",  "WinWaitActive \"Google Chrome\", , seconds", "Bring the app forward and wait for it."),
         ("Run",            "Run \"https://example.com\" or Run \"Safari\"", "Open an address, a file or an app."),
         ("MsgBox",         "MsgBox \"text\"",                           "Show a line at the bottom of the screen, for a moment."),
@@ -1585,6 +1589,21 @@ enum Script {
             H["tooltip"] = { I, v, _ in I.host.say(toStr(a(v, 0)), false); return nil }
             H["run"] = { I, v, _ in I.host.run(toStr(a(v, 0))); return nil }
             H["winactivate"] = { I, v, _ in .num(I.host.activate(toStr(a(v, 0))) ? 1 : 0) }
+            H["menuselect"] = { I, v, line in
+                // MenuSelect WinTitle, WinText, "Menu", "Sub1", ... (AutoHotkey v2; WinText is ignored) -> 1 pressed, 0 not found
+                var path: [String] = []; var i = 2
+                while let x = a(v, i) { path.append(toStr(x)); i += 1 }
+                if path.isEmpty { throw ScriptError(line: line, msg: "MenuSelect needs a menu name") }
+                if !I.host.menuSelect(toStr(a(v, 0)), path) { throw ScriptError(line: line, msg: "no menu item " + path.joined(separator: " > ")) }
+                return nil
+            }
+            H["wingetpos"] = { I, v, line in
+                // WinGetPos &x, &y, &w, &h, WinTitle (AutoHotkey v2): the window's top left and size, in screen points
+                guard let r = I.host.winGetPos(toStr(a(v, 4))) else { throw ScriptError(line: line, msg: "no window " + toStr(a(v, 4))) }
+                let vals = [r.0, r.1, r.2, r.3]
+                for k in 0..<4 where a(v, k) != nil { try I.setRef(a(v, k), .num(vals[k]), line) }
+                return nil
+            }
             H["winexist"] = { I, v, _ in .num(I.host.winExists(toStr(a(v, 0))) ? 1 : 0) }
             H["winwaitactive"] = { I, v, line in
                 let title = toStr(a(v, 0)), deadline = I.host.now() + (try optNum(a(v, 2), line, 10)!)

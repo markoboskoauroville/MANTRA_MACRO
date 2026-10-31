@@ -4,6 +4,7 @@
 // host below, which posts the clicks and keys; Sleep sleeps that thread, and the stop key makes the next host call
 // throw, so a loop with no Sleep is still stopped (the interpreter calls sleep(0) every few hundred statements).
 import AppKit
+import ApplicationServices
 import Combine
 import IOKit.hid
 
@@ -630,6 +631,38 @@ final class MacHost: ScriptHost {
         }
     }
     func winExists(_ title: String) -> Bool { onMain { findApp(title) != nil || windowOwner(title) != nil } }
+    // MenuSelect (v6, 31.10.2026): the app's menu bar through Accessibility, each name matched without case, "…" = "..."
+    func menuSelect(_ title: String, _ path: [String]) -> Bool {
+        guard let app = onMain({ findApp(title) ?? windowOwner(title).flatMap { NSRunningApplication(processIdentifier: $0) } }) else { return false }
+        func clean(_ s: String) -> String { s.replacingOccurrences(of: "…", with: "...").lowercased().trimmingCharacters(in: .whitespaces) }
+        func attr(_ e: AXUIElement, _ n: String) -> AnyObject? { var v: AnyObject?; AXUIElementCopyAttributeValue(e, n as CFString, &v); return v }
+        func kids(_ e: AXUIElement) -> [AXUIElement] { (attr(e, kAXChildrenAttribute) as? [AXUIElement]) ?? [] }
+        let ax = AXUIElementCreateApplication(app.processIdentifier)
+        guard let bar = attr(ax, kAXMenuBarAttribute) else { return false }
+        var level = [bar as! AXUIElement]
+        for (n, name) in path.enumerated() {
+            // the items of this level: the bar's items, or the items of the open menu under the last item
+            let items = level.flatMap { kids($0) }.flatMap { (attr($0, kAXRoleAttribute) as? String) == "AXMenu" ? kids($0) : [$0] }
+            guard let hit = items.first(where: { clean((attr($0, kAXTitleAttribute) as? String) ?? "") == clean(name) })
+                ?? items.first(where: { clean((attr($0, kAXTitleAttribute) as? String) ?? "").hasPrefix(clean(name)) }) else { return false }
+            if n == path.count - 1 { return AXUIElementPerformAction(hit, kAXPressAction as CFString) == .success }
+            level = [hit]
+        }
+        return false
+    }
+    // WinGetPos (v6): a window whose title contains the text, else the app's biggest window (CGWindowList, screen points)
+    func winGetPos(_ title: String) -> (Double, Double, Double, Double)? {
+        let t = title.lowercased()
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        func rect(_ w: [String: Any]) -> CGRect? { (w[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0) } }
+        if let w = list.first(where: { (($0[kCGWindowName as String] as? String) ?? "").lowercased().contains(t) }), let r = rect(w) {
+            return (Double(r.minX), Double(r.minY), Double(r.width), Double(r.height))
+        }
+        guard let app = onMain({ findApp(title) }) else { return nil }
+        let mine = list.filter { ($0[kCGWindowOwnerPID as String] as? Int).map { pid_t($0) } == app.processIdentifier && ($0[kCGWindowLayer as String] as? Int) == 0 }
+        guard let r = mine.compactMap(rect).max(by: { $0.width * $0.height < $1.width * $1.height }) else { return nil }
+        return (Double(r.minX), Double(r.minY), Double(r.width), Double(r.height))
+    }
     func clipboard() -> String { onMain { NSPasteboard.general.string(forType: .string) ?? "" } }
     func setClipboard(_ v: String) { onMain { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(v, forType: .string) } }
     func screen() -> (Double, Double) { onMain { let f = NSScreen.main?.frame ?? .zero; return (Double(f.width), Double(f.height)) } }

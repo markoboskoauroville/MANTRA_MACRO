@@ -47,6 +47,8 @@ class FakeHost: ScriptHost {
     func fileExist(_ p: String) -> Bool { false }
     func fileRead(_ p: String) -> String { "" }
     func fileAppend(_ text: String, _ p: String) {}
+    func menuSelect(_ title: String, _ path: [String]) -> Bool { log.append("menu " + path.joined(separator: ">")); return true }
+    func winGetPos(_ title: String) -> (Double, Double, Double, Double)? { (0, 25, 2560, 1415) }
 }
 
 func run(_ src: String, _ host: FakeHost = FakeHost()) -> (Bool, String, FakeHost) {
@@ -360,7 +362,11 @@ func said(_ h: FakeHost, _ i: Int) -> String { i < h.said.count ? h.said[i] : "n
         ok(Script.strEscape("a\"b`c\nd") == "a`\"b``c`nd", "strEscape: " + Script.strEscape("a\"b`c\nd"))
         (r, m, h) = run("Send \"" + Script.sendEscape("50% ^ off!") + "\"\n")
         ok(r && logs(h) == "type 50% ^ off!", "sendEscape round-trips through Send: " + logs(h))
-        ok(Script.commands.count == 56 && Script.commands[0].name == "Click", "the command list for the editor: \(Script.commands.count)")
+        do {   // v6: MenuSelect and WinGetPos
+            let (r, _, h) = run("MenuSelect \"DaVinci Resolve\", , \"Fairlight\", \"Presets Library\"\nWinGetPos &x, &y, &w, &h, \"DaVinci Resolve\"\nif (y != 25 || w != 2560)\n    throw")
+            ok(r && h.log.contains("menu Fairlight>Presets Library"), "MenuSelect walks the path, WinGetPos fills x y w h")
+        }
+        ok(Script.commands.count == 58 && Script.commands[0].name == "Click", "the command list for the editor: \(Script.commands.count)")
 
         print(fails == 0 ? "\n\(passed) checks passed" : "\n\(fails) FAILED, \(passed) passed")
         exit(fails == 0 ? 0 : 1)
