@@ -70,3 +70,8 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 1. Every public app page in the order of MANTRA_MANIFEST modules/app-page-order.md: the banner (the app at work, name and one line on it), a short introduction with the download button and the version line, the lifestyle picture, the technical part, the donation bowl.
 
 **Status:** done 1.11.2026 (site/public/index.html, deployed with tools/deploy_site.sh): banner img/hero.jpg with the icon and the name on it, the introduction with Download for Mac and the version line, the lifestyle picture img/lifestyle.jpg, the technical part, the bowl.
+
+## 1.11.2026: no Mantra at the beginning of the name
+> "please, you do renaming, and then let me write on the screen in big letters. You can close the session now" (1.11.2026)
+
+**Status:** done: the page, the deploy scripts and the bio card say "<Name> (Mantra)".

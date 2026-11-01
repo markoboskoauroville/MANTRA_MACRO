@@ -9,7 +9,7 @@ STAGE=build/dmg; rm -rf "$STAGE"; mkdir -p "$STAGE"
 cp -R "build/$NAME.app" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 cat > "$STAGE/Read me first.txt" <<TXT
-Mantra Macro Recorder $V  —  https://mantramacrorecorder.pages.dev
+Macro Recorder (Mantra) $V  —  https://mantramacrorecorder.pages.dev
 
 1. Drag "Macro Recorder (Mantra)" onto the Applications folder.
 2. Open it from Applications. The first time, macOS says it cannot check the app, because it is signed by its author
@@ -25,7 +25,7 @@ Free to use. If it helps you, put something in the bowl on the website.
 TXT
 cp "build/$NAME.app/Contents/Resources/AppIcon.icns" "$STAGE/.VolumeIcon.icns"
 OUT="build/MantraMacroRecorder-$V.dmg"; rm -f "$OUT" build/tmp.dmg
-hdiutil create -quiet -volname "Mantra Macro Recorder $V" -srcfolder "$STAGE" -fs HFS+ -format UDRW build/tmp.dmg
+hdiutil create -quiet -volname "Macro Recorder (Mantra) $V" -srcfolder "$STAGE" -fs HFS+ -format UDRW build/tmp.dmg
 D=$(hdiutil attach -nobrowse -noverify -noautoopen build/tmp.dmg | awk -F'\t' '/\/Volumes\//{print $NF}')
 command -v SetFile >/dev/null && SetFile -a C "$D" || true
 hdiutil detach -quiet "$D"
