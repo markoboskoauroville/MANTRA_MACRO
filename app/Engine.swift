@@ -73,6 +73,7 @@ final class Engine: ObservableObject {
 
     var tap: CFMachPort?
     var events: [RecEvent] = []
+    let view = RecordingView()            // v8: the windows clicked in, for RECALIBRATE
     var t0 = 0.0
     static let KINDS: [CGEventType: String] = [
         .keyDown: "keyDown", .keyUp: "keyUp", .leftMouseDown: "leftMouseDown", .leftMouseUp: "leftMouseUp",
@@ -108,6 +109,8 @@ final class Engine: ObservableObject {
         default:
             ev.x = e.location.x; ev.y = e.location.y
             if kind.hasPrefix("other") { ev.button = Int(e.getIntegerValueField(.mouseEventButtonNumber)) }
+            // v8: the window under the pointer, pictured before it is clicked (RECALIBRATE's view)
+            if kind == "mouseMoved" || kind.hasSuffix("MouseDown") { view.pointer(e.location, click: kind.hasSuffix("MouseDown")) }
         }
         events.append(ev)
     }
@@ -134,6 +137,9 @@ final class Engine: ObservableObject {
         CGEvent.tapEnable(tap: t, enable: true)
         tap = t
         events = []; t0 = Date().timeIntervalSince1970
+        view.reset()
+        // the window under the pointer now is pictured at once (the first click may come before any move)
+        view.pointer(CGEvent(source: nil)?.location ?? .zero, click: false)
         recording = true
         Overlay.shared.show("REC" + (pending.map { "  " + $0 } ?? ""), REDC)
         tint("red")
@@ -167,6 +173,7 @@ final class Engine: ObservableObject {
             current = p; pending = nil
             let slot = Slots.autoPlace(&settings.slots, p)
             say(slot.map { "saved \(p)  in slot \($0)" } ?? "saved " + p, GREENC, 2)
+            view.store(p) { [weak self] v in if v != nil { self?.changed() } }
         } else {
             current = nil
             say("\(events.count) events recorded", GREYC, 1.4)
@@ -231,11 +238,13 @@ final class Engine: ObservableObject {
         if Macros.exists(n) { return say("there is already a macro called " + n, GREYC, 2) }
         if let e = Macros.rename(old, n) { return say(e, GREYC, 2) }
         Slots.rename(&settings.slots, old, n)
+        Refs.rename(old, n)
         if current == old { current = n; settings.current = n }
         settings.save(); say("renamed to " + n); changed()
     }
     func trash(_ n: String) {
         if let e = Macros.trash(n) { return say(e, GREYC, 2) }
+        Refs.trash(n)
         Slots.remove(&settings.slots, n)
         if current == n { current = nil; settings.current = nil; text = nil }
         settings.save(); say(n + " moved to the trash folder", GREYC, 1.6); changed()
@@ -253,9 +262,44 @@ final class Engine: ObservableObject {
         if recording { stopRecording() }
         runNamed(n)
     }
-    func runNamed(_ n: String) {
-        guard loadMacro(n, quiet: true), let t = text else { return }
-        runScript(t, n)
+    func runNamed(_ n: String) { runMacro(n) }
+    // v8: a stored macro is played; when its window stands elsewhere now (or has another size) and AUTO is on, it is
+    // recalibrated first, then played from the corrected file
+    func runMacro(_ n: String, done: ((Bool, String?, Int?) -> Void)? = nil) {
+        let go = { [weak self] (note: String?) in
+            guard let s = self else { return }
+            guard s.loadMacro(n, quiet: true), let t = s.text else { done?(false, "no macro called " + n, nil); return }
+            s.runScript(t, n, done: done)
+            if let m = note { s.sayWhilePlaying("recalibrated first: " + m, 3) }
+        }
+        guard settings.autoRecal, Macros.kind(n) == "script", has(Refs.dir(n) + "/view.json") else { return go(nil) }
+        DispatchQueue.global(qos: .userInitiated).async {
+            var note: String?
+            if Recal.differs(n) { note = Recal.recalibrate(n).summary }
+            DispatchQueue.main.async { go(note) }
+        }
+    }
+    // v8: RECALIBRATE from the window: the clicks follow the window to where it is now
+    func recalibrate(_ n: String) {
+        if recording { return say("stop the recording first", GREYC, 2) }
+        say("recalibrating " + n + "…", GREYC, 8)
+        Overlay.shared.spinStart()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let r = Recal.recalibrate(n)
+            DispatchQueue.main.async {
+                Overlay.shared.spinEnd()
+                if self.current == n { _ = self.loadMacro(n, quiet: true) }
+                self.say(r.summary, r.ok ? GREENC : GREYC, 5); self.changed()
+            }
+        }
+    }
+    // v8: VIEW from the window: the macro fits the screen as it is now; store that as its view
+    func storeView(_ n: String) {
+        if recording { return say("stop the recording first", GREYC, 2) }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let r = Recal.reference(n)
+            DispatchQueue.main.async { self.say(r.summary, r.ok ? GREENC : GREYC, 4); self.changed() }
+        }
     }
 
     // MARK: playing
@@ -298,6 +342,7 @@ final class Engine: ObservableObject {
         var t = text, n = current ?? "last recording"
         if t?.isEmpty ?? true { t = readText(LAST_AHK); n = "last recording" }
         guard let s = t, !s.isEmpty else { return say("nothing in the player yet") }
+        if let c = current, n == c, Macros.kind(c) == "script" { return runMacro(c) }
         runScript(s, n)
     }
     func stopPlaying() {
@@ -662,6 +707,11 @@ final class MacHost: ScriptHost {
         let mine = list.filter { ($0[kCGWindowOwnerPID as String] as? Int).map { pid_t($0) } == app.processIdentifier && ($0[kCGWindowLayer as String] as? Int) == 0 }
         guard let r = mine.compactMap(rect).max(by: { $0.width * $0.height < $1.width * $1.height }) else { return nil }
         return (Double(r.minX), Double(r.minY), Double(r.width), Double(r.height))
+    }
+    // Recalibrate "name" (v8): runs on the player's thread, so the pictures it takes do not stop the window
+    func recalibrate(_ name: String) -> (Bool, String) {
+        let r = Recal.recalibrate(name.isEmpty ? e.playName : name)
+        return (r.ok, r.summary)
     }
     func clipboard() -> String { onMain { NSPasteboard.general.string(forType: .string) ?? "" } }
     func setClipboard(_ v: String) { onMain { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(v, forType: .string) } }

@@ -191,3 +191,25 @@
 - Qt menus (Resolve) open a submenu only after slow real mouse-moves along the row (60 ms steps); `MenuSelect` through
   Accessibility avoids that altogether for the menu bar.
 - Dialogs: click relative to the dialog's own window (`WinGetPos`), not to the main window's centre; the offsets moved.
+
+## 1.11.2026: RECALIBRATE (v8)
+
+40. **A window kept on top is not at level 0.** The first test recorded the view of the Download Monitor window behind
+    the test window, because the window list was filtered to layer 0 and the test window floats (layer 3, as any of
+    Marko's apps with TOP on). The view takes levels 0 to 19 now; the window list is front to back, so the first window
+    holding the point is the one clicked.
+41. **Picture the window before the click, not at it.** The view is taken the first time the pointer is over a window
+    (moves are looked at every 0.15 s, and the window under the pointer when recording starts), so the stored picture
+    shows the state the macro starts from, which is also the state RECALIBRATE sees before playing.
+42. **Compare at one pixel per point.** Both pictures are drawn to grey at the window's size in points, so a 2× and a 1×
+    screen, or a changed resolution, compare directly; a half-size copy makes the whole-window search quick (a whole
+    recalibration of five clicks took 0.47 s).
+43. **Geometry first, then the picture.** Each click is tried at its likely places (kept to an edge, the centre,
+    scaled) and only then searched everywhere: a row of identical buttons stays right because the nearest likely place
+    wins. A centred button and its scaled place are usually the same spot; the report names the nearest.
+44. **Never guess silently.** A patch not seen anywhere: if the window only moved, the offset is exact and is used
+    (said so); if it was resized, the point is kept and the report says NOT FOUND. Tested by hiding a target's spot in
+    the stored picture (best 13 %, kept). A flat patch grows to 80 and 128 points first, so a click on empty background
+    near buttons is still placed by its neighbours (88 % in the test).
+45. **A test recording overwrites last.ahk.** The plain last recording is rewritten by every recording, named or not; it
+    was put back from `recordings/30.10. 09.28.json` after the test. Tests should leave `last.*` as they found them.

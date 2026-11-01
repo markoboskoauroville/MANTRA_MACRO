@@ -208,7 +208,7 @@ struct MainView: View {
                             TextField("name", text: $renameText, onCommit: { e.rename(n, renameText); renaming = nil })
                                 .textFieldStyle(.roundedBorder)
                         } else {
-                            Text(n).foregroundColor(e.current == n ? .amber : .sand).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                            Text(n).foregroundColor(e.current == n ? .amber : .sand).fixedSize(horizontal: false, vertical: true)
                                 .onTapGesture { renaming = n; renameText = n }
                         }
                         Spacer(minLength: 4)
@@ -222,6 +222,18 @@ struct MainView: View {
                     Text(info.bad ? "cannot read" : (info.kind == "script" ? "\(info.lines) lines" : "\(info.events) events, a recording")
                          + (info.recorded.isEmpty ? "" : " · " + info.recorded))
                         .font(.system(size: 10)).foregroundColor(info.bad ? .rec : .off)
+                    // v8 (Marko, 1.11.2026): RECALIBRATE, the clicks follow the window to where it is now. On a line of their
+                    // own with the stored view, so the name above keeps its whole width at 380 (never cut text)
+                    let view = Refs.describe(n)
+                    HStack(alignment: .top, spacing: 4) {
+                        Text(view ?? "no stored view: VIEW stores it while the window is where the clicks fit")
+                            .font(.system(size: 10)).foregroundColor(.off).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
+                        Word(text: "RECAL", color: view != nil ? .sand : .slate, size: 11, help: "RECALIBRATE: compare the stored view of the window with how it is now, and move every click with it", ax: "recalibrate") {
+                            if view != nil { e.recalibrate(n) } else { e.say(n + " has no stored view yet: press VIEW while its window is where the clicks fit", GREYC, 3) }
+                        }
+                        Word(text: "VIEW", color: .off, size: 11, help: "store the view now: the windows under this macro's clicks, as they are (the macro fits the screen now)", ax: "store-view") { e.storeView(n) }
+                    }
                     HStack(spacing: 2) {
                         ForEach(Slots.ORDER, id: \.self) { d in
                             Word(text: d, color: slot == d ? .on : .off, size: 11, help: slot == d ? "take it out of slot \(d)" : "put it in slot \(d)") {
@@ -305,7 +317,7 @@ struct MainView: View {
     // MARK: playback, the window, the folder
 
     var playback: some View {
-        Section(title: "PLAYBACK", hint: "Speed divides every Sleep. Delay between clicks puts every click at least that long after the last one.") {
+        Section(title: "PLAYBACK", hint: "Speed divides every Sleep. Delay between clicks puts every click at least that long after the last one. Auto recalibrate: a macro whose window moved or changed size is recalibrated before it plays.") {
             HStack(spacing: 4) {
                 Text("Speed").font(.system(size: 12)).frame(width: 64, alignment: .leading)
                 ForEach(Settings.SPEEDS, id: \.self) { v in
@@ -319,6 +331,11 @@ struct MainView: View {
                         s.clickDelay = v; s.save(); e.changed()
                     }
                 }
+            }
+            HStack(spacing: 4) {
+                Word(text: "AUTO RECALIBRATE", color: s.autoRecal ? .on : .off, help: "green: before a macro plays, its window is checked; moved or resized, the clicks are recalibrated first", ax: "auto-recalibrate") {
+                    s.autoRecal.toggle(); s.save(); e.changed()
+                }.accessibilityValue(s.autoRecal ? "on" : "off")
             }
         }
     }

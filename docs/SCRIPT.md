@@ -28,6 +28,22 @@ Send "Hello, world{Enter}"
 Coordinates are points on the screen, the same numbers the recorder writes. On a second screen
 they continue past the first one's edge.
 
+**When the window moved: RECALIBRATE (v8).** A recording stores the view of every window it clicked in (the app, the
+window's place and size, the screen's scale, a picture of the window). If that window now stands elsewhere, has
+another size, or the screen changed, RECALIBRATE takes a new picture of the window, finds each click's spot in it
+(kept to an edge, the centre, scaled, or anywhere in the window by its picture) and rewrites the numbers in the file.
+The old file goes to the trash folder; a spot it cannot see is kept as it was and named in the report.
+
+- `Recalibrate "macro name"` does it from a script and gives back the summary: `s := Recalibrate("Resolve render")`.
+  An error when the macro has no stored view.
+- From the window: RECAL beside a macro (VIEW stores the view now, when the clicks fit the screen as it is).
+  AUTO RECALIBRATE under PLAYBACK (on as it comes) does it by itself before a macro plays, when its window moved.
+- From a terminal: `macro recalibrate "macro name"` prints, line by line, how each click was corrected;
+  `macro view "macro name" ["App"]` stores the view now.
+
+Only plain numbers are corrected (`Click 381, 644`, `MouseMove`, `MouseClick`, `MouseClickDrag`); a coordinate in a
+variable, like `Click x + 66, y + 100` after `WinGetPos`, already follows its window and is left alone.
+
 ## The keyboard
 
 `Send` types text and presses keys. Inside its text four characters mean a modifier for the
@@ -215,6 +231,7 @@ MsgBox o["name"]
   `…` and `...` both match, a name may be the start of the item's name). An error when the item is not there.
 - `WinGetPos &x, &y, &w, &h, "Presets Library"` puts a window's top left and size into the variables: a window whose
   title contains the text, else the app's biggest window. Then `Click x + 66, y + 100` clicks relative to it.
+- `Recalibrate "macro name"` moves that macro's clicks to where its window is now (see The mouse).
 - `Run "https://example.com"` opens an address; `Run "Safari"` opens an app; `Run "/path/file"` a file.
 - `MsgBox "text"` and `ToolTip "text"` show a line at the bottom middle of the screen, for a moment.
 - `FileExist("/path")`, `FileRead("/path")`, `FileAppend "text", "/path"`.

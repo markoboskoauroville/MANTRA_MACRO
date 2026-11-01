@@ -46,6 +46,7 @@ protocol ScriptHost: AnyObject {
     func winExists(_ title: String) -> Bool
     func menuSelect(_ title: String, _ path: [String]) -> Bool
     func winGetPos(_ title: String) -> (Double, Double, Double, Double)?
+    func recalibrate(_ name: String) -> (Bool, String)
     func clipboard() -> String
     func setClipboard(_ v: String)
     func screen() -> (Double, Double)
@@ -853,6 +854,7 @@ enum Script {
         ("WinExist",       "WinExist(\"Google Chrome\")",               "1 when an app or window with that name is open."),
         ("MenuSelect",     "MenuSelect \"DaVinci Resolve\", , \"Fairlight\", \"Presets Library\"", "Press a menu item of that app by its names (… or ... both match)."),
         ("WinGetPos",      "WinGetPos &x, &y, &w, &h, \"DaVinci Resolve\"", "The window's top left corner and size: click relative to it."),
+        ("Recalibrate",    "Recalibrate \"macro name\"",              "Move that macro's clicks to where its window is now (compares the stored view with a new picture)."),
         ("WinWaitActive",  "WinWaitActive \"Google Chrome\", , seconds", "Bring the app forward and wait for it."),
         ("Run",            "Run \"https://example.com\" or Run \"Safari\"", "Open an address, a file or an app."),
         ("MsgBox",         "MsgBox \"text\"",                           "Show a line at the bottom of the screen, for a moment."),
@@ -1603,6 +1605,12 @@ enum Script {
                 let vals = [r.0, r.1, r.2, r.3]
                 for k in 0..<4 where a(v, k) != nil { try I.setRef(a(v, k), .num(vals[k]), line) }
                 return nil
+            }
+            H["recalibrate"] = { I, v, line in
+                // Recalibrate "name" (v8): that macro's clicks follow its window to where it is now; returns the summary
+                let r = I.host.recalibrate(a(v, 0).map { toStr($0) } ?? "")
+                if !r.0 { throw ScriptError(line: line, msg: r.1) }
+                return .str(r.1)
             }
             H["winexist"] = { I, v, _ in .num(I.host.winExists(toStr(a(v, 0))) ? 1 : 0) }
             H["winwaitactive"] = { I, v, line in

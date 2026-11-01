@@ -60,3 +60,5 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 > It should do this by comparing the current view with the stored view, then recalculating the same actions for the new
 > view. When the macro fires, it will click the same positions, just by comparing the previous size to the new size and
 > finding the differences. Please build that.
+
+- v8: RECALIBRATE (button RECAL, `macro recalibrate`, `Recalibrate "name"`), the view stored at recording, VIEW, AUTO RECALIBRATE before play. **Status:** done 1.11.2026, tested on a throwaway window (moved, resized, shrunk, swapped targets, hidden patch refused).

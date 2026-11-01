@@ -107,6 +107,7 @@ final class Settings {
     var raw: [String: Any] = [:]
     var speed = 1.0, clickDelay = 0.0, ignoreTravel = false
     var autoSmall = true, onTop = false
+    var autoRecal = true                   // v8: a macro whose window moved is recalibrated before it plays
     var keys = DEFAULT_KEYS, loadMods = DEFAULT_LOAD, runMods = DEFAULT_RUN
     var slots: [String: String] = [:]
     var zones: [String: Zone] = [:]
@@ -123,6 +124,7 @@ final class Settings {
         ignoreTravel = (j["ignoreTravel"] as? Bool) ?? false
         autoSmall = (j["autoSmall"] as? Bool) ?? true
         onTop = (j["onTop"] as? Bool) ?? false
+        autoRecal = (j["autoRecal"] as? Bool) ?? true
         current = j["current"] as? String
         slots = Slots.normalise(j["slots"])
         zones = [:]
@@ -148,7 +150,7 @@ final class Settings {
         mkdirs(DIR)
         var j = raw
         j["speed"] = speed; j["clickDelay"] = clickDelay; j["ignoreTravel"] = ignoreTravel
-        j["autoSmall"] = autoSmall; j["onTop"] = onTop
+        j["autoSmall"] = autoSmall; j["onTop"] = onTop; j["autoRecal"] = autoRecal
         j["current"] = current ?? NSNull()
         j["slots"] = slots
         j["zones"] = zones.mapValues { ["x": $0.x, "y": $0.y, "w": $0.w, "h": $0.h] }

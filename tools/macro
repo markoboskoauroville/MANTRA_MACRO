@@ -1,19 +1,33 @@
 #!/bin/sh
 # macro: run a stored macro or a few lines of script through Macro Recorder (Mantra) and wait for the answer (v5, 31.10.2026)
-#   macro run "<name>"            play ~/.mantra_macro/macros/<name>.ahk
+#   macro run "<name>"            play ~/.mantra_macro/macros/<name>.ahk (recalibrated first if its window moved, v8)
 #   macro do 'Click 100, 200'      run these lines (AutoHotkey v2 syntax, docs/SCRIPT.md)
 #   macro do - < file.ahk          run a script from stdin
-# Prints ok or the error; exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
+#   macro recalibrate "<name>"     move the macro's clicks to where its window is now; prints the report (v8)
+#   macro view "<name>" ["App"]    store the view now: the windows under its clicks (only App's, if given) (v8)
+#   macro record "<name>"  /  macro stop     record a new macro under that name, and stop and save it (v8)
+# Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
 IN="$HOME/.mantra_macro/inbox"; mkdir -p "$IN"
 id="$(date +%s)-$$"
 case "$1" in
   run) printf 'run: %s\n' "$2" > "$IN/$id.part" ;;
   do)  if [ "$2" = "-" ]; then cat > "$IN/$id.part"; else printf '%s\n' "$2" > "$IN/$id.part"; fi ;;
-  *) sed -n '2,6p' "$0"; exit 2 ;;
+  record) printf 'record: %s\n' "$2" > "$IN/$id.part" ;;
+  stop) printf 'stop:\n' > "$IN/$id.part" ;;
+  recalibrate) printf 'recalibrate: %s\n' "$2" > "$IN/$id.part" ;;
+  view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
+  *) sed -n '2,9p' "$0"; exit 2 ;;
 esac
 mv "$IN/$id.part" "$IN/$id.ahk"
-pgrep -xq MacroRecorder || { echo "Macro Recorder is not running (its row in the star starts it)"; rm -f "$IN/$id.ahk"; exit 3; }
+pgrep -xq MacroRecorder || { echo "Macro Recorder is not running (open it from Applications)"; rm -f "$IN/$id.ahk"; exit 3; }
 t=0; lim=$(( ${MACRO_TIMEOUT:-120} * 10 ))
 while [ ! -f "$IN/$id.result.json" ]; do sleep 0.1; t=$((t+1)); [ $t -ge $lim ] && { echo "no answer in ${MACRO_TIMEOUT:-120} s"; exit 4; }; done
-r=$(cat "$IN/$id.result.json"); rm -f "$IN/$id.result.json"
-case "$r" in *'"ok":true'*) echo ok; exit 0 ;; *) echo "$r"; exit 1 ;; esac
+f="$IN/$id.result.json"; r=$(cat "$f")
+msg=$(plutil -extract message raw -o - "$f" 2>/dev/null)
+rm -f "$f"
+case "$1:$r" in
+  recalibrate:*'"ok":true'*|view:*'"ok":true'*|record:*'"ok":true'*|stop:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
+  *'"ok":true'*) echo ok; exit 0 ;;
+  recalibrate:*|view:*|record:*|stop:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
+  *) echo "$r"; exit 1 ;;
+esac

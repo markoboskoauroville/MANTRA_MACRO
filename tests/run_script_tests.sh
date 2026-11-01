@@ -5,3 +5,6 @@ cd "$(dirname "$0")/.."
 mkdir -p build
 swiftc -O -swift-version 5 -parse-as-library app/Script.swift tests/ScriptTests.swift -o build/script_tests
 build/script_tests
+# v8: RECALIBRATE's coordinates (app/Coords.swift), no app needed
+swiftc -O -swift-version 5 -parse-as-library app/Coords.swift tests/RecalTests.swift -o build/recal_tests
+build/recal_tests

@@ -50,6 +50,44 @@ Then let people use it. It is not part of the Start menu anymore. It is now rele
 - **App:** an icon in the menu bar (red while recording, green while playing) with open, record, play, the website, quit;
   the version link opens the website. The star's row is gone (STAR_SWIFT rows.json).
 
+## RECALIBRATE: the clicks follow the window (v8, 1.11.2026)
+
+Marko: *"If some actions were recorded for a certain piece of software, recalibrate should take a screenshot of that
+software, so that all mouse actions land in the same places, corrected. The screen resolution may have changed, or the
+user may have moved the window somewhere else on the screen ... by comparing the current view with the stored view."*
+
+- **The view.** While it records, the window under the pointer is pictured the first time the pointer comes over it
+  (before any click changes it). When a named recording stops, every window that was clicked in is stored with the
+  macro: `~/.mantra_macro/refs/<macro>/view.json` (app, bundle id, title, frame in points, the screen's size and
+  scale) and `w0.png` (the window alone, ScreenCaptureKit, even if covered). Floating windows count (level 0 to 19:
+  an app with TOP on sits at 3). VIEW (or `macro view "<name>" ["App"]`) stores it again on demand, from the windows
+  under the macro's clicks as they are now; that is how an older macro gets a view.
+- **RECALIBRATE** (RECAL beside the macro, `macro recalibrate "<name>"`, or `Recalibrate "<name>"` in a script): the
+  window is found again (same bundle id, same title, else its biggest window) and pictured. Each literal x, y inside
+  the stored window gets up to sixteen likely places (on each axis kept to the left or right edge, the centre, or
+  scaled); each is checked by matching a 48-point patch of the stored picture around the click in the new picture
+  (normalised cross-correlation on grey at one pixel per point, so 2× and 1× screens compare; ±8 points around each
+  place). The first place seen at 80 % or more wins; else the patch is searched in the whole window (found by
+  picture). A plain area grows the patch to 80 and 128 points. Not seen anywhere: a window that only moved still
+  moves the point by its offset (exact); a resized one keeps the old point and the report says NOT FOUND. The file is
+  rewritten (numbers only, one `; recalibrated …` comment under the first line), the version before goes to
+  `trash/<name> <stamp> (before recalibrate).ahk`, the new view is stored, and the report is
+  `refs/<name>/report.txt`.
+- **AUTO RECALIBRATE** (PLAYBACK, on as it comes, setting `autoRecal`): before a stored macro plays (slot, ▶, PLAY,
+  `macro run`) its windows are looked up; one that moved or changed size is recalibrated first (it costs one window
+  list when nothing moved).
+- **For Claude:** `macro record "<name>"` and `macro stop` record through the inbox (only `stop:` is taken while it
+  records), so a macro can be recorded and checked without the keys.
+
+```
+$ macro recalibrate "recal test"
+window testwin: was 420×328 at 2700, 120 (scale 2.0×), now 560×420 at 2800, 300 (scale 2.0×)
+line 4  Click 2765, 192  → 2865, 372  moved by offset (+100, +180), seen 100%
+line 6  Click 3055, 200  → 3295, 380  kept to the right edge across, top edge down (+240, +180), seen 100%
+line 10  Click 2772, 402  → 2872, 674  kept to the left edge across, bottom edge down (+100, +272), seen 100%
+recal test: 5 moved, 0 where they were, 0 not found (kept)
+```
+
 ## The keys, as they come
 
 ```
@@ -168,19 +206,23 @@ The page and its server on :8829 are gone with the Lua: nothing listens on the n
     app/Store.swift        the folder, settings.json, the ten slots, the macros on disk
     app/Keys.swift         key names (Hammerspoon's, from the current layout), the global chords (Carbon), catching a chord
     app/Eye.swift          the eye: a picture found on a screen shot, ScreenCaptureKit + Accelerate
+    app/Recalibrate.swift  v8: the stored view (refs/), the windows on screen, RECALIBRATE, VIEW, the view while recording
+    app/Coords.swift       v8: the literal coordinates of a script read and written back, the likely places (pure)
     app/Window.swift       the window (SwiftUI)
     app/Editor.swift       the script editor and the language window
     icon/make_icon.swift   the icon, drawn, with the version under it
     build.sh               swiftc, the icon, signed "Mantra Apps", installed in /Applications
     docs/SCRIPT.md         the language, shown in the language window (copied into the app)
-    tests/run_script_tests.sh  the language against a fake host, 55 checks, no app needed
+    tests/run_script_tests.sh  the language against a fake host (58 checks) and RECALIBRATE's coordinates
+                           (tests/RecalTests.swift, 15 checks), no app needed
     tests/*.lua            the Lua tests of the Lua version, kept with it
     ~/.mantra_macro/settings.json   speed, clickDelay, keys, slots, zones, window
     ~/.mantra_macro/macros/         the macros, <name>.ahk
     ~/.mantra_macro/images/         the pictures
     ~/.mantra_macro/last.ahk        the plain last recording
     ~/.mantra_macro/recordings/     the raw events of every recording, kept
-    ~/.mantra_macro/trash/          whatever the bin removed
+    ~/.mantra_macro/trash/          whatever the bin removed, and every macro as it was before a recalibration
+    ~/.mantra_macro/refs/<name>/    v8: the macro's stored view (view.json, w0.png …, report.txt)
 
 Build and test:
 

@@ -13,10 +13,13 @@
 // v4 (31.10.2026, Marko: "Each needs to have the same user interface elements. On, off and top."): TOP on the first
 // row (the window above every other, the setting "onTop" it already had, applied at launch); KEEP ON TOP and QUIT go
 // (TOP and OFF do the same; swift-apps.md "No QUIT"); every word an Accessibility button with a fixed identifier.
+// v8 (1.11.2026, Marko: "build a function called recalibrate"): a recording stores the view of every window clicked in;
+// RECAL (button, `macro recalibrate`, Recalibrate "name") moves the clicks to where that window is now, by its picture;
+// AUTO RECALIBRATE does it before a macro plays when its window moved. Recalibrate.swift, Coords.swift.
 import AppKit
 import SwiftUI
 
-let VERSION = 7
+let VERSION = 8
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
