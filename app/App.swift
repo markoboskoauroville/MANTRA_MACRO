@@ -19,7 +19,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 8
+let VERSION = 9
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
 final class AppDelegate: NSObject, NSApplicationDelegate {

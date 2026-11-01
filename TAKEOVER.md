@@ -42,3 +42,9 @@ changes: **https://mantramacrorecorder.pages.dev/download/MacroRecorder.dmg**. N
 - The check after a release: `curl -sI https://mantramacrorecorder.pages.dev/download/MacroRecorder.dmg` answers 200 and the page shows
   the new version.
 - 1.11.2026: v8 put behind the fixed address, live checked: 200, the same bytes as build/MantraMacroRecorder-8.dmg (1366077), MantraMacroRecorder-8.dmg → 301, the page says Version 8.
+
+## v9 (1.11.2026): Run runs an executable
+
+`Run "/path/script.sh [args]"`: an executable file (not a folder or .app) is started as a process, as AutoHotkey's Run
+does; documents, apps and addresses open as before (Engine.swift run). For Elevate Media Project Monitor's ▶ FINISH
+macro, which opens iTerm with a command instead of typing into it. Published v9 (DMG + page).

@@ -649,6 +649,18 @@ final class MacHost: ScriptHost {
         let w = what.hasPrefix("~") ? HOME + what.dropFirst() : what
         DispatchQueue.main.async {
             if w.hasPrefix("http://") || w.hasPrefix("https://") || w.hasPrefix("file:") { NSWorkspace.shared.open(URL(string: w)!); return }
+            // v9 (1.11.2026, for Elevate Media Project Monitor's ▶ FINISH): an executable file (a script, a .command) is RUN,
+            // as AutoHotkey's Run does, with any words after it as its arguments; a document or an app is opened as before
+            let parts = w.split(separator: " ", maxSplits: 1).map(String.init)
+            let exe = FileManager.default.isExecutableFile(atPath: w) ? w : parts[0]
+            var dir: ObjCBool = false
+            if exe.hasPrefix("/"), !exe.hasSuffix(".app"), FileManager.default.fileExists(atPath: exe, isDirectory: &dir), !dir.boolValue,
+               FileManager.default.isExecutableFile(atPath: exe) {
+                let p = Process(); p.executableURL = URL(fileURLWithPath: exe)
+                if exe != w, parts.count > 1 { p.arguments = parts[1].split(separator: " ").map(String.init) }
+                p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+                try? p.run(); return
+            }
             if w.hasPrefix("/") { NSWorkspace.shared.open(URL(fileURLWithPath: w)); return }
             let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/open"); p.arguments = ["-a", w]
             try? p.run()

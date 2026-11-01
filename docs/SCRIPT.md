@@ -232,7 +232,7 @@ MsgBox o["name"]
 - `WinGetPos &x, &y, &w, &h, "Presets Library"` puts a window's top left and size into the variables: a window whose
   title contains the text, else the app's biggest window. Then `Click x + 66, y + 100` clicks relative to it.
 - `Recalibrate "macro name"` moves that macro's clicks to where its window is now (see The mouse).
-- `Run "https://example.com"` opens an address; `Run "Safari"` opens an app; `Run "/path/file"` a file.
+- `Run "https://example.com"` opens an address; `Run "Safari"` opens an app; `Run "/path/file"` a file. `Run "/path/script.sh"` runs an executable file (a script, a .command), as AutoHotkey does; words after the path are its arguments (v9).
 - `MsgBox "text"` and `ToolTip "text"` show a line at the bottom middle of the screen, for a moment.
 - `FileExist("/path")`, `FileRead("/path")`, `FileAppend "text", "/path"`.
 - `ExitApp` stops the macro.
