@@ -62,3 +62,11 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 > finding the differences. Please build that.
 
 - v8: RECALIBRATE (button RECAL, `macro recalibrate`, `Recalibrate "name"`), the view stored at recording, VIEW, AUTO RECALIBRATE before play. **Status:** done 1.11.2026, tested on a throwaway window (moved, resized, shrunk, swapped targets, hidden patch refused).
+
+## 1.11.2026: the page order (banner, introduction, lifestyle, technical, donation)
+
+> "the page is perfect. Let's do it all pages" (Marko, 1.11.2026, about mantramiditools.pages.dev)
+
+1. Every public app page in the order of MANTRA_MANIFEST modules/app-page-order.md: the banner (the app at work, name and one line on it), a short introduction with the download button and the version line, the lifestyle picture, the technical part, the donation bowl.
+
+**Status:** done 1.11.2026 (site/public/index.html, deployed with tools/deploy_site.sh): banner img/hero.jpg with the icon and the name on it, the introduction with Download for Mac and the version line, the lifestyle picture img/lifestyle.jpg, the technical part, the bowl.

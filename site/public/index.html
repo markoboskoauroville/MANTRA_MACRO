@@ -37,6 +37,15 @@
   .card h3 { margin: 0 0 6px; font-size: 18px; }
   .card p { margin: 0; color: var(--dim); font-size: 15px; }
   h2 { font-size: 24px; margin: 0 0 14px; }
+  /* the page order (MANTRA_MANIFEST app-page-order.md): banner, introduction, lifestyle, technical, donation */
+  .banner { position: relative; border-radius: 18px; overflow: hidden; margin: 0 0 28px; background: #000; }
+  .banner > img { display: block; width: 100%; height: auto; aspect-ratio: 1024 / 572; object-fit: cover; }
+  .banner .over { position: absolute; left: 0; right: 0; bottom: 0; padding: 60px 26px 22px;
+                  background: linear-gradient(transparent, rgba(0,0,0,.82)); display: flex; gap: 18px; align-items: center; }
+  .banner .over img { width: 64px; height: 64px; flex: none; }
+  .life { border-radius: 18px; overflow: hidden; margin: 8px 0 44px; }
+  .life img { display: block; width: 100%; height: auto; }
+  @media (max-width: 600px) { h1 { font-size: 28px; } .banner .over { position: static; background: var(--raised); padding: 16px; } }
   ol { padding-left: 22px; margin: 0 0 44px; }
   ol li { margin: 8px 0; }
   code, pre { background: var(--raised); border: 1px solid var(--line); border-radius: 6px; font-size: 15px; }
@@ -71,23 +80,34 @@
 </head>
 <body>
 <main>
-  <header>
-    <img src="icon-512.png" alt="">
-    <div>
-      <h1>Mantra Macro Recorder</h1>
-      <div class="by">AutoHotkey for the Mac · free · by Mantra Productions</div>
+  <!-- 1. the banner: the app at work -->
+  <div class="banner">
+    <img src="img/hero.jpg" alt="A hand on a MacBook on a wooden desk: the screen shows a recorded trail of clicks as glowing lines, and beside it the script Macro Recorder wrote from them" width="1024" height="572">
+    <div class="over">
+      <img src="icon-512.png" alt="">
+      <div>
+        <h1>Mantra Macro Recorder</h1>
+        <div class="by">AutoHotkey for the Mac · free · by Mantra Productions</div>
+      </div>
     </div>
-  </header>
+  </div>
 
+  <!-- 2. the introduction -->
+  <p class="lead">It watches what you do, the clicks, the keys, the waits, and writes it down as a script you can
+    read. Change a line, play it back, give it a key. The script is AutoHotkey: what you learn here runs on
+    Windows too.</p>
+  <div class="actions">
+    <a class="btn" href="MantraMacroRecorder-8.dmg" data-dl-app="macro" download>Download for Mac</a>
+  </div>
+  <p class="small">Version 8 · macOS 14 or newer · Apple Silicon and Intel · 1.2 MB</p>
+
+  <!-- 3. the lifestyle picture -->
+  <div class="life"><img src="img/lifestyle.jpg" alt="A smiling woman leans back in her chair with a cup of tea in a sunny home office while her MacBook and keyboard work on their own" width="1024" height="765" loading="lazy"></div>
+
+  <!-- 4. the technical part -->
+  <h2>What it does</h2>
   <div class="hero">
     <div>
-      <p class="lead">It watches what you do, the clicks, the keys, the waits, and writes it down as a script you can
-        read. Change a line, play it back, give it a key. The script is AutoHotkey: what you learn here runs on
-        Windows too.</p>
-      <div class="actions">
-        <a class="btn" href="MantraMacroRecorder-8.dmg" data-dl-app="macro" download>Download for Mac</a>
-      </div>
-      <p class="small">Version 8 · macOS 14 or newer · Apple Silicon and Intel · 1.2 MB</p>
       <pre><code>; recorded 31.10. 10:42
 Click 381, 644
 Sleep 900
@@ -138,6 +158,7 @@ if ClickImage("generate.png", 5) {
   <p style="margin:0 0 44px;color:var(--dim)">Everything stays on your Mac. Macros are text files in <code>~/.mantra_macro/macros</code>;
     the app has no account, sends nothing anywhere and finds pictures on your own screen.</p>
 
+<!-- 5. the donation bowl -->
 <!-- THE MANTRA PAYMENT GATEWAY, the donation bowl (MANTRA_MANIFEST modules/donation-bowl.md, payment-links.md).
      Step 1, on the page: only the title and the Tibetan bowl (a photoreal Nano Banana Pro render).
      Step 2, after a tap: the bowl rings (a singing bowl synthesised in the browser, nothing downloaded), fades away, and
