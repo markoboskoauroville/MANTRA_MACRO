@@ -3,6 +3,9 @@
 # (MANTRA_MANIFEST mac-app-signing.md, swift-apps.md). The version is the one number in app/App.swift.
 set -e
 cd "$(dirname "$0")"
+# ./build.sh               build, install, then publish: DMG + page (download-always-latest.md, 1.11.2026)
+# ./build.sh --no-publish  build and install only
+PUBLISH=1; for a in "$@"; do case "$a" in --no-publish) PUBLISH=0;; esac; done
 V=$(sed -n 's/^let VERSION = \([0-9]*\)/\1/p' app/App.swift)
 NAME="Macro Recorder (Mantra)"
 APP="build/$NAME.app"
@@ -40,3 +43,10 @@ cp docs/SCRIPT.md "$APP/Contents/Resources/SCRIPT.md"
 codesign --force -s "Mantra Apps" "$APP"
 rm -rf "/Applications/$NAME.app"; cp -R "$APP" /Applications/
 echo "built $APP (v$V) and installed it in /Applications"
+# the release step: every new version reaches the page in the same run (MANTRA_MANIFEST download-always-latest.md)
+if [ "$PUBLISH" = 1 ]; then
+  tools/make_dmg.sh
+  tools/deploy_site.sh
+else
+  echo "not published (--no-publish)"
+fi

@@ -23,3 +23,22 @@ another Mac. Nothing starts by itself: the star brings it back at login only if 
   stop` for Claude. Tested end to end on a throwaway window on the MacBook screen (README, LESSONS 40–45): move+resize,
   shrink with AUTO, pure move, a patch hidden (refused, kept), two targets swapped (found by picture 97 %); every play
   logged the five targets in order. Not tested: a real change of screen scale (the BenQ was off limits).
+
+
+## Publishing: the download button always gives the newest version (1.11.2026)
+
+MANTRA_MANIFEST modules/download-always-latest.md. The button on https://mantramacrorecorder.pages.dev links one address that never
+changes: **https://mantramacrorecorder.pages.dev/download/MacroRecorder.dmg**. Nobody edits the page for a new version.
+
+- `./build.sh` builds, signs, installs, then publishes by itself: `tools/make_dmg.sh` (build/MantraMacroRecorder-<V>.dmg) and
+  `tools/deploy_site.sh`. `./build.sh --no-publish` builds and installs only.
+- `tools/deploy_site.sh` takes V from `let VERSION` in app/App.swift, refuses a DMG of 25 MB or more (Cloudflare Pages' limit:
+  then a GitHub release, per the module), removes every .dmg from site/public, copies the DMG to
+  site/public/download/MacroRecorder.dmg, adds the `site/public/_redirects` line(s) that send the old versioned names
+  (`/MantraMacroRecorder-*`) to it with a 301, writes the version and the size into `<span id="app-version">` and
+  `<span id="app-size">` of index.html, runs the SEO kit with `--download download/MacroRecorder.dmg`, checks no versioned
+  name is left on the page, and deploys with wrangler. To publish the current version again without building:
+  `tools/deploy_site.sh` (the DMG in build/ must exist).
+- The check after a release: `curl -sI https://mantramacrorecorder.pages.dev/download/MacroRecorder.dmg` answers 200 and the page shows
+  the new version.
+- 1.11.2026: v8 put behind the fixed address, live checked: 200, the same bytes as build/MantraMacroRecorder-8.dmg (1366077), MantraMacroRecorder-8.dmg → 301, the page says Version 8.

@@ -213,3 +213,5 @@
     near buttons is still placed by its neighbours (88 % in the test).
 45. **A test recording overwrites last.ahk.** The plain last recording is rewritten by every recording, named or not; it
     was put back from `recordings/30.10. 09.28.json` after the test. Tests should leave `last.*` as they found them.
+
+46. **A download link with the version in its name goes stale** (1.11.2026): the page linked MantraMacroRecorder-8.dmg and was right only because a session edited it by hand. Now the button links download/MacroRecorder.dmg, build.sh publishes every new version to that one address, and the version on the page is written from VERSION at deploy. Check the DMG on the bowl page is under 25 MB, else it needs a GitHub release.

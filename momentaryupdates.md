@@ -80,4 +80,4 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 
 > "yes, fix download links so every website gets each new version by itself" (Marko, 1.11.2026)
 
-**Status:** in progress 1.11.2026 (MANTRA_MANIFEST modules/download-always-latest.md: a fixed address download/<Name>.dmg, filled by build.sh at every new version).
+**Status:** done 1.11.2026 (MANTRA_MANIFEST modules/download-always-latest.md: a fixed address download/<Name>.dmg, filled by build.sh at every new version).

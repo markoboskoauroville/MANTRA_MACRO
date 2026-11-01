@@ -2,3 +2,4 @@ luac.out
 .DS_Store
 build/
 site/public/*.dmg
+site/public/download/
