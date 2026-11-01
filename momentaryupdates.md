@@ -47,3 +47,16 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 > It is not part of the Start menu anymore. It is now released as an independent release.
 
 - Website https://mantramacrorecorder.pages.dev (bowl, counters, SEO), DMG v7, menu-bar icon, out of the star, card 16 on the bio. **Status:** done
+
+## 1.11.2026, hub session (during Free Voice Convert): RECALIBRATE
+
+> Please, in my macro recorder, also build a function called recalibrate.
+>
+> If some actions were recorded for a certain piece of software, recalibrate should take a screenshot of that software,
+> so that all mouse actions land in the same places, corrected. The screen resolution may have changed, or the user may
+> have moved the window somewhere else on the screen. The application needs to be intelligent enough to correct all the
+> mouse coordinates.
+>
+> It should do this by comparing the current view with the stored view, then recalculating the same actions for the new
+> view. When the macro fires, it will click the same positions, just by comparing the previous size to the new size and
+> finding the differences. Please build that.
