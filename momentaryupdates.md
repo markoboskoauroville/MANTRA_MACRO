@@ -75,3 +75,9 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 > "please, you do renaming, and then let me write on the screen in big letters. You can close the session now" (1.11.2026)
 
 **Status:** done: the page, the deploy scripts and the bio card say "<Name> (Mantra)".
+
+## 1.11.2026: the download link gives each new version by itself
+
+> "yes, fix download links so every website gets each new version by itself" (Marko, 1.11.2026)
+
+**Status:** in progress 1.11.2026 (MANTRA_MANIFEST modules/download-always-latest.md: a fixed address download/<Name>.dmg, filled by build.sh at every new version).
