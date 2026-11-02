@@ -92,3 +92,7 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 
 ## 2.11.2026 09:10 CT, Marko (mac-session1): whole-page capture
 "if not already, you need to build in my macro recorder screen capture algorithm, which can capture the whole page. If something is cut off, it needs to scroll down and stitch the image"
+
+## 2.11.2026 09:55 CT, Marko (mac-session1): build it now, then the WhatsApp chat
+"please whole page capture now built for my macro recorder"
+"once it is built, open my browser called Firefox, and then there is opened WhatsApp. You need to capture the whole stream of my chat with people in one image and save it on the desktop. I'm going to open it from the desktop"
