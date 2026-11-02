@@ -89,3 +89,6 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 1. One centred link "My studio setup" right above the donation bowl, opening https://studiosetupmantra.pages.dev in a new tab, with the line "The gear these apps are made with · affiliate links on Amazon.de".
 
 **Status:** committed 1.11.2026, NOT pushed or deployed: waiting until Marko registers studiosetupmantra.pages.dev in Amazon PartnerNet and the studio page is live.
+
+## 2.11.2026 09:10 CT, Marko (mac-session1): whole-page capture
+"if not already, you need to build in my macro recorder screen capture algorithm, which can capture the whole page. If something is cut off, it needs to scroll down and stitch the image"
