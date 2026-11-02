@@ -4,6 +4,7 @@ import Foundation
 // any script) drops <id>.ahk into ~/.mantra_macro/inbox; the app runs it like a macro and writes <id>.result.json next
 // to it: {"ok": true|false, "message": "...", "line": n}. A file holding only "run: <name>" plays that stored macro.
 // The `macro` command (tools/macro) writes the file and waits for the result.
+// v9 (2.11.2026): "ax-read: <app>", "ax-press: <app> | <label>", "ax-quit: <app>" for the common Star API (AX.swift).
 // v8 (1.11.2026): "recalibrate: <name>" runs RECALIBRATE, "view: <name> [| app]" stores the view; the report comes back as the message.
 let INBOX = DIR + "/inbox"
 
@@ -57,6 +58,18 @@ final class Inbox {
                 }
             }
             return
+        }
+        // v9: the common Star API (STAR_API) reads windows and presses controls by name, and quits apps
+        for cmd in ["ax-read:", "ax-press:", "ax-quit:"] where trimmed.hasPrefix(cmd) {
+            let arg = trimmed.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
+            let parts = arg.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+            let r: (Bool, String)
+            switch cmd {
+            case "ax-read:": r = AX.read(parts[0])
+            case "ax-press:": r = parts.count > 1 ? AX.press(parts[0], parts[1...].joined(separator: "|")) : (false, "ax-press: <app> | <label>")
+            default: r = AX.quit(parts[0])
+            }
+            return finish(id, r.0, r.1, nil)
         }
         if trimmed.hasPrefix("run:") {
             let n = trimmed.dropFirst(4).trimmingCharacters(in: .whitespaces)
