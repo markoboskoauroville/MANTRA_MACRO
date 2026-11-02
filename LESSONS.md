@@ -215,3 +215,7 @@
     was put back from `recordings/30.10. 09.28.json` after the test. Tests should leave `last.*` as they found them.
 
 46. **A download link with the version in its name goes stale** (1.11.2026): the page linked MantraMacroRecorder-8.dmg and was right only because a session edited it by hand. Now the button links download/MacroRecorder.dmg, build.sh publishes every new version to that one address, and the version on the page is written from VERSION at deploy. Check the DMG on the bowl page is under 25 MB, else it needs a GitHub release.
+
+- (2.11.2026) A CGBitmapContext's memory starts with the picture's TOP row; flipping it made every overlap search fail.
+- (2.11.2026) Smooth scrolling moves the page after the event returns: shoot until two shots in a row are equal.
+- (2.11.2026) A shot's edge rows carry the pane's hairline; lay each piece over the last one's edge rows.

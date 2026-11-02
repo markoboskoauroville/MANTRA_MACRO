@@ -48,3 +48,9 @@ changes: **https://mantramacrorecorder.pages.dev/download/MacroRecorder.dmg**. N
 `Run "/path/script.sh [args]"`: an executable file (not a folder or .app) is started as a process, as AutoHotkey's Run
 does; documents, apps and addresses open as before (Engine.swift run). For Elevate Media Project Monitor's ▶ FINISH
 macro, which opens iTerm with a command instead of typing into it. Published v9 (DMG + page).
+
+## 2.11.2026 (v9 → v11)
+- v10: `AX.swift`, inbox `ax-read` / `ax-press` / `ax-quit`, the Accessibility half of the common Star API (STAR_API).
+- v11: `PageCapture.swift`, `CapturePage` / `macro capture-page`: the whole page as one picture (shots wait until the
+  picture stands still, the overlap is found on 96-column row signatures near the expected scroll, pieces laid over
+  each other's 4 edge rows). Tested on WhatsApp Web's chat list: 70 shots, 880×57432 px, clean joins. Published v11.

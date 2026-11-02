@@ -96,3 +96,4 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 ## 2.11.2026 09:55 CT, Marko (mac-session1): build it now, then the WhatsApp chat
 "please whole page capture now built for my macro recorder"
 "once it is built, open my browser called Firefox, and then there is opened WhatsApp. You need to capture the whole stream of my chat with people in one image and save it on the desktop. I'm going to open it from the desktop"
+**Status:** done 2.11.2026: v11 built and published; no chat was open, so the whole chat list was captured (~/Desktop/WhatsApp chats 2.11.2026.png, 70 shots).
