@@ -59,6 +59,15 @@ final class Inbox {
             }
             return
         }
+        // v11: "capture-page: x, y, w, h | down | /path/file.png" the whole page as one picture (PageCapture.swift)
+        if trimmed.hasPrefix("capture-page:") {
+            let arg = String(trimmed.dropFirst("capture-page:".count))
+            DispatchQueue.global(qos: .userInitiated).async {
+                let r = PageCapture.fromInbox(arg)
+                DispatchQueue.main.async { self.finish(id, r.ok, r.message, nil) }
+            }
+            return
+        }
         // v9: the common Star API (STAR_API) reads windows and presses controls by name, and quits apps
         for cmd in ["ax-read:", "ax-press:", "ax-quit:"] where trimmed.hasPrefix(cmd) {
             let arg = trimmed.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)

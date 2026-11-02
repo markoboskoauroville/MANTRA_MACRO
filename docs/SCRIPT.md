@@ -252,3 +252,13 @@ MsgBox o["name"]
 
 Press the stop key (⌃⌥⌘. as it comes) or the play key again. A macro that loops forever with
 no Sleep can still be stopped: the player checks between statements.
+
+## The whole page as one picture (v11, 2.11.2026)
+
+- `CapturePage "page.png", x, y, w, h` shoots that rectangle of the screen (the part that scrolls: a page, a chat list),
+  scrolls it by two thirds of its height, shoots again, and joins the shots where they overlap, until the scroll stops.
+  Returns the picture's height in pixels. `CapturePage "chat.png", x, y, w, h, "up"` goes upward (a chat's older
+  messages); a seventh number limits the shots (400 by default).
+- From the terminal: `macro capture-page "x,y,w,h" down ~/Desktop/page.png` (or `front` for the front window).
+- The pointer is put over the rectangle while it scrolls and brought back afterwards. Each shot waits until the picture
+  stands still (smooth scrolling), and the joins are laid over each other so no edge line shows.

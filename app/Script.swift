@@ -1586,6 +1586,15 @@ enum Script {
                     try I.host.click(button, r.x + (r.w / 2).rounded(.down), r.y + (r.h / 2).rounded(.down), 1, I.heldMods())
                 } ? 1 : 0)
             }
+            H["capturepage"] = { I, v, line in
+                // CapturePage "file.png", x, y, w, h [, "down"|"up" [, most shots]]  -> the picture's height in pixels (v11)
+                let r = CGRect(x: try toNum(a(v, 1), line), y: try toNum(a(v, 2), line), width: try toNum(a(v, 3), line), height: try toNum(a(v, 4), line))
+                let up = a(v, 5).map { toStr($0).lowercased() == "up" } ?? false
+                let res = PageCapture.capture(r, up: up, out: Pictures.path(toStr(a(v, 0))), most: Int(try optNum(a(v, 6), line, 400)!))
+                if !res.ok { throw ScriptError(line: line, msg: res.message) }
+                I.host.say(res.message, false)
+                return .num(Double(res.message.split(separator: "×").last.flatMap { Int($0.prefix { $0.isNumber }) } ?? 0))
+            }
             H["pixelgetcolor"] = { I, v, line in .str(I.host.pixel(try toNum(a(v, 0), line), try toNum(a(v, 1), line))) }
             H["msgbox"] = { I, v, _ in I.host.say(toStr(a(v, 0)), true); return nil }
             H["tooltip"] = { I, v, _ in I.host.say(toStr(a(v, 0)), false); return nil }
