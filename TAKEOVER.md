@@ -62,3 +62,10 @@ macro, which opens iTerm with a command instead of typing into it. Published v9 
 - v13: `capture-window`, `capture-screen`, `capture-rect` (app/Capture.swift, Inbox.swift, tools/macro). Every session
   captures through these (MANTRA_MANIFEST macro-recorder.md, capture section). Published to mantramacrorecorder.pages.dev.
 - Next if needed: capture a window's region only; a short frame burst (N frames, bounded) for a moving window.
+
+## 3.11.2026 close, v14–v16
+- Triggers: settings.json "triggers" {name: {key, mods, on}}, bound in Engine.bindKeys as Carbon hot keys; inbox
+  `trigger: <name> | <key> | on|off`; CLI `macro trigger`. First one: "F1 Claude dictation" on F1 (on).
+- v15: Overlay writes beside the status item (dot + text), no panel; spinner = "…".
+- v16: AXClick "App", "label" (AX.center + a real click, pointer restored). build.sh restarts the app (old/new pid).
+- Site mantramacrorecorder.pages.dev deployed by build.sh (v16 dmg); release v16 Latest.
