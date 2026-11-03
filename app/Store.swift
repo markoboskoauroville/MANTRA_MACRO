@@ -70,6 +70,7 @@ enum Slots {
 // MARK: the keys
 
 struct Binding: Equatable { var mods: [String]; var key: String }
+struct Trigger: Equatable { var mods: [String]; var key: String; var on: Bool }   // v14
 let MOD_ORDER = ["ctrl", "alt", "shift", "cmd"]
 let ACTIONS: [(id: String, label: String)] = [
     ("record", "Record, and stop recording"),
@@ -112,6 +113,9 @@ final class Settings {
     var slots: [String: String] = [:]
     var zones: [String: Zone] = [:]
     var current: String?
+    // v14 (Marko, 3.11.2026: "A switcher on our application is just enabling or disabling that macro remotely inside the
+    // macro recorder"): a macro can have its own key (F1, or a chord) that plays it; each one on or off, from the inbox
+    var triggers: [String: Trigger] = [:]
 
     static let SPEEDS = [0.5, 1, 2, 4, 8]
     static let DELAYS = [0, 0.25, 0.5, 1, 2]
@@ -133,6 +137,13 @@ final class Settings {
                 guard let v = v as? [String: Any], let x = v["x"] as? Double, let y = v["y"] as? Double,
                       let w = v["w"] as? Double, let h = v["h"] as? Double, w > 0, h > 0 else { continue }
                 zones[k] = Zone(x: x, y: y, w: w, h: h)
+            }
+        }
+        triggers = [:]
+        if let t = j["triggers"] as? [String: Any] {
+            for (n, v) in t {
+                guard let v = v as? [String: Any], let key = v["key"] as? String else { continue }
+                triggers[n] = Trigger(mods: cleanMods(v["mods"] as? [String] ?? []), key: key, on: v["on"] as? Bool ?? true)
             }
         }
         keys = DEFAULT_KEYS
@@ -157,6 +168,7 @@ final class Settings {
         var k: [String: Any] = ["loadMods": loadMods, "runMods": runMods]
         for (id, b) in keys { k[id] = ["mods": b.mods, "key": b.key] }
         j["keys"] = k
+        j["triggers"] = triggers.mapValues { ["mods": $0.mods, "key": $0.key, "on": $0.on] as [String: Any] }
         if j["current"] is NSNull { j.removeValue(forKey: "current") }
         if let d = try? JSONSerialization.data(withJSONObject: j, options: [.prettyPrinted, .sortedKeys]) {
             try? d.write(to: URL(fileURLWithPath: SET_FILE), options: .atomic)

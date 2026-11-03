@@ -265,6 +265,25 @@ final class Engine: ObservableObject {
     func runNamed(_ n: String) { runMacro(n) }
     // v8: a stored macro is played; when its window stands elsewhere now (or has another size) and AUTO is on, it is
     // recalibrated first, then played from the corrected file
+    // v14: "trigger: <name> | <key> | on|off" from the inbox; with only the name, the state is reported
+    func setTrigger(_ n: String, key: String?, on: Bool?) -> (Bool, String) {
+        guard has(MAC_DIR + "/" + n + ".ahk") else { return (false, "no macro called " + n) }
+        var t = settings.triggers[n] ?? Trigger(mods: [], key: "", on: false)
+        if let k = key, !k.isEmpty {
+            let parts = k.lowercased().split(separator: "+").map(String.init)
+            let name = parts.last!, mods = cleanMods(Array(parts.dropLast()))
+            guard KeyMap.codes[name] != nil else { return (false, "no key called " + name) }
+            if let u = settings.usedBy(mods, name, except: nil) { return (false, keyLabel(Binding(mods: mods, key: name)) + " is already " + u) }
+            if let other = settings.triggers.first(where: { $0.key != n && $0.value.key == name && sameMods($0.value.mods, mods) }) {
+                return (false, keyLabel(Binding(mods: mods, key: name)) + " already plays " + other.key)
+            }
+            t.mods = mods; t.key = name
+        }
+        if let o = on { t.on = o }
+        guard !t.key.isEmpty else { return (false, n + " has no key yet: trigger: " + n + " | f1 | on") }
+        settings.triggers[n] = t; settings.save(); bindKeys(); changed()
+        return (true, n + ": " + keyLabel(Binding(mods: t.mods, key: t.key)) + " " + (t.on ? "on" : "off"))
+    }
     func runMacro(_ n: String, done: ((Bool, String?, Int?) -> Void)? = nil) {
         let go = { [weak self] (note: String?) in
             guard let s = self else { return }
@@ -469,6 +488,13 @@ final class Engine: ObservableObject {
         for d in Slots.ORDER { H.bind(Binding(mods: settings.loadMods, key: d)) { [unowned self] in self.loadSlot(d) } }
         if !sameMods(settings.runMods, settings.loadMods) {
             for d in Slots.ORDER { H.bind(Binding(mods: settings.runMods, key: d)) { [unowned self] in self.runSlot(d) } }
+        }
+        // v14: each macro's own key, while it is switched on; the key is taken from the system (a hot key)
+        for (n, t) in settings.triggers where t.on && has(MAC_DIR + "/" + n + ".ahk") {
+            H.bind(Binding(mods: t.mods, key: t.key)) { [unowned self] in
+                if self.playing || self.recording { return }
+                self.runMacro(n)
+            }
         }
     }
     // the next chord pressed (with a modifier, or a function key) becomes the action's key; Esc keeps the old one

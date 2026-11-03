@@ -223,3 +223,6 @@
   onScreenWindowsOnly false and a desktop-independent window filter returns the real pixels (Resolve, 2560x1415).
 - (3.11.2026) A capture tool must refuse a flat one-colour picture, or a blank frame passes for a capture.
 - (3.11.2026) v12 sat built and installed but uncommitted for a day; commit what is installed before building the next.
+
+## 3.11.2026 (v14)
+- Triggers: a Carbon hot key per macro (no permission), bound in bindKeys with the slots; a trigger never fires while a macro plays or records.

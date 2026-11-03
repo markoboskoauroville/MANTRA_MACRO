@@ -10,6 +10,7 @@
 #   macro capture-window "<app or title>" [file.png]   that window's own pixels, also on another Space or behind others (v13)
 #   macro capture-screen <display name part | 1,2..> [file.png]   /   macro capture-rect "x,y,w,h" [file.png]   (v13)
 #     captures go to ~/.mantra_macro/captures/ unless a file is given; prints the path
+#   macro trigger "<name>" [key] [on|off]   that macro's own key (f1, ctrl+alt+k) on or off; no key/state = report (v14)
 #   macro record "<name>"  /  macro stop     record a new macro under that name, and stop and save it (v8)
 # Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
 IN="$HOME/.mantra_macro/inbox"; mkdir -p "$IN"
@@ -22,11 +23,12 @@ case "$1" in
   recalibrate) printf 'recalibrate: %s\n' "$2" > "$IN/$id.part" ;;
   capture-page) printf 'capture-page: %s | %s | %s\n' "$2" "${3:-down}" "${4:-$HOME/Desktop/page.png}" > "$IN/$id.part" ;;
   capture-window|capture-screen|capture-rect) printf '%s: %s | %s\n' "$1" "$2" "$3" > "$IN/$id.part" ;;
+  trigger) printf 'trigger: %s | %s | %s\n' "$2" "$3" "$4" > "$IN/$id.part" ;;
   ax-read|ax-quit) printf '%s: %s\n' "$1" "$2" > "$IN/$id.part" ;;
   ax-focus-end) printf 'ax-focus-end: %s | %s | %s\n' "$2" "${3:-textarea}" "${4:-1}" > "$IN/$id.part" ;;
   ax-press) printf 'ax-press: %s | %s\n' "$2" "$3" > "$IN/$id.part" ;;
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
-  *) sed -n '2,14p' "$0"; exit 2 ;;
+  *) sed -n '2,15p' "$0"; exit 2 ;;
 esac
 mv "$IN/$id.part" "$IN/$id.ahk"
 pgrep -xq MacroRecorder || { echo "Macro Recorder is not running (open it from Applications)"; rm -f "$IN/$id.ahk"; exit 3; }

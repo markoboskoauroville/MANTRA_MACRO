@@ -249,3 +249,11 @@ sh tests/run_script_tests.sh && sh build.sh
 
 The star's row `macro` is `"kind": "app"` (STAR_SWIFT rows.json). A click on it opens the app; OFF in
 the window quits it.
+
+## Triggers: a macro on its own key (v14, 3.11.2026)
+Marko: "A switcher on our application is just enabling or disabling that macro remotely inside the macro recorder."
+A macro can have its own key (F1, or a chord like ctrl+alt+k) that plays it, each one on or off, kept in
+settings.json under "triggers". From outside: `macro trigger "<name>" f1 on`, `... off`, or only the name for the
+state; the inbox line is `trigger: <name> | <key> | on|off`. A key already used by an action, a slot chord or another
+trigger is refused. First user: "F1 Claude dictation" (WinActivate "Claude", Sleep 150, Send "{F2}"), switched from the
+Elevate Media Project Monitor.

@@ -90,6 +90,15 @@ final class Inbox {
             }
             return finish(id, r.0, r.1, nil)
         }
+        // v14: "trigger: <name> | <key> | on|off" (key and state optional), answered at once, nothing played
+        if trimmed.hasPrefix("trigger:") {
+            let parts = trimmed.dropFirst("trigger:".count).split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+            let n = parts.first ?? ""
+            let key = parts.count > 1 && !parts[1].isEmpty ? parts[1] : nil
+            let st = parts.count > 2 ? parts[2].lowercased() : ""
+            let r = Engine.shared.setTrigger(n, key: key, on: st == "on" ? true : st == "off" ? false : nil)
+            return finish(id, r.0, r.1, nil)
+        }
         if trimmed.hasPrefix("run:") {
             let n = trimmed.dropFirst(4).trimmingCharacters(in: .whitespaces)
             guard has(MAC_DIR + "/" + n + ".ahk") else { return finish(id, false, "no macro called " + n, nil) }
