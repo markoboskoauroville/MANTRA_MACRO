@@ -59,6 +59,15 @@ final class Inbox {
             }
             return
         }
+        // v13: capture-window / capture-screen / capture-rect (Capture.swift)
+        for cmd in ["capture-window:", "capture-screen:", "capture-rect:"] where trimmed.hasPrefix(cmd) {
+            let arg = String(trimmed.dropFirst(cmd.count)).trimmingCharacters(in: .whitespaces)
+            DispatchQueue.global(qos: .userInitiated).async {
+                let r = Capture.fromInbox(cmd, arg)
+                DispatchQueue.main.async { self.finish(id, r.ok, r.message, nil) }
+            }
+            return
+        }
         // v11: "capture-page: x, y, w, h | down | /path/file.png" the whole page as one picture (PageCapture.swift)
         if trimmed.hasPrefix("capture-page:") {
             let arg = String(trimmed.dropFirst("capture-page:".count))

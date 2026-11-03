@@ -54,3 +54,11 @@ macro, which opens iTerm with a command instead of typing into it. Published v9 
 - v11: `PageCapture.swift`, `CapturePage` / `macro capture-page`: the whole page as one picture (shots wait until the
   picture stands still, the overlap is found on 96-column row signatures near the expected scroll, pieces laid over
   each other's 4 edge rows). Tested on WhatsApp Web's chat list: 70 shots, 880×57432 px, clean joins. Published v11.
+
+## 3.11.2026 (v12 → v13)
+
+- v12 (2.11.2026, built then, committed 3.11.2026): `macro ax-focus-end "<app>" [role] [n]` focuses the n-th control of a
+  role with the cursor at the end (for "he only pastes the key").
+- v13: `capture-window`, `capture-screen`, `capture-rect` (app/Capture.swift, Inbox.swift, tools/macro). Every session
+  captures through these (MANTRA_MANIFEST macro-recorder.md, capture section). Published to mantramacrorecorder.pages.dev.
+- Next if needed: capture a window's region only; a short frame burst (N frames, bounded) for a moving window.

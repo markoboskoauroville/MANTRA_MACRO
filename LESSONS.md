@@ -219,3 +219,7 @@
 - (2.11.2026) A CGBitmapContext's memory starts with the picture's TOP row; flipping it made every overlap search fail.
 - (2.11.2026) Smooth scrolling moves the page after the event returns: shoot until two shots in a row are equal.
 - (2.11.2026) A shot's edge rows carry the pane's hairline; lay each piece over the last one's edge rows.
+- (3.11.2026) `screencapture -l <id>` of a window on another Space returns a white picture; ScreenCaptureKit with
+  onScreenWindowsOnly false and a desktop-independent window filter returns the real pixels (Resolve, 2560x1415).
+- (3.11.2026) A capture tool must refuse a flat one-colour picture, or a blank frame passes for a capture.
+- (3.11.2026) v12 sat built and installed but uncommitted for a day; commit what is installed before building the next.

@@ -88,6 +88,23 @@ line 10  Click 2772, 402  → 2872, 674  kept to the left edge across, bottom ed
 recal test: 5 moved, 0 where they were, 0 not found (kept)
 ```
 
+## Captures for every session (v13, 3.11.2026)
+
+Marko: *"For any capturing work, screen capturing ... macro recorder, which can grab or press and do many things, and use
+it for your work."* *"If some features are missing, you need them. Please code them inside that app."*
+
+    macro capture-window "<app or title part>" [file.png]   the window's own pixels, also on another Space or behind
+                                                             other windows; nothing comes to the front, no focus taken
+    macro capture-screen <display name part | 1, 2 ..> [file.png]   one whole display
+    macro capture-rect "x, y, w, h" [file.png]               a rectangle in global points, at the screen's pixels
+    macro capture-page "x,y,w,h"|front [down|up] [file.png]  a whole scrolling page, stitched (v11)
+
+Without a file the picture goes to `~/.mantra_macro/captures/<name>_<date-time>.png`; the answer is the path with the
+size. A picture of one flat colour is refused as blank (exit 1), so an empty frame is never taken for a capture. Made with
+ScreenCaptureKit (`app/Capture.swift`): every window is listed, also off screen, and the biggest normal window of the
+app (or with that title) is shot as a desktop-independent window. Proven on DaVinci Resolve on another Space, where
+`screencapture -l` gave a blank white picture.
+
 ## The keys, as they come
 
 ```
