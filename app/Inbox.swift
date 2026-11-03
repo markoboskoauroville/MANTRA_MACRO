@@ -69,12 +69,13 @@ final class Inbox {
             return
         }
         // v9: the common Star API (STAR_API) reads windows and presses controls by name, and quits apps
-        for cmd in ["ax-read:", "ax-press:", "ax-quit:"] where trimmed.hasPrefix(cmd) {
+        for cmd in ["ax-read:", "ax-press:", "ax-quit:", "ax-focus-end:"] where trimmed.hasPrefix(cmd) {
             let arg = trimmed.dropFirst(cmd.count).trimmingCharacters(in: .whitespaces)
             let parts = arg.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
             let r: (Bool, String)
             switch cmd {
             case "ax-read:": r = AX.read(parts[0])
+            case "ax-focus-end:": r = AX.focusEnd(parts[0], parts.count > 1 ? parts[1] : "textarea", parts.count > 2 ? Int(parts[2]) ?? 1 : 1)
             case "ax-press:": r = parts.count > 1 ? AX.press(parts[0], parts[1...].joined(separator: "|")) : (false, "ax-press: <app> | <label>")
             default: r = AX.quit(parts[0])
             }

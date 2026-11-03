@@ -86,6 +86,25 @@ enum AX {
                              : (false, "\(h.label) did not take the press (AX error \(r.rawValue))")
     }
 
+    /// v12 (Marko, 2.11.2026: "writes everything, and just waits for me to paste the key"): the app to the front, the
+    /// n-th control of a role focused, its cursor at the very end, without reading its text (it may hold keys)
+    static func focusEnd(_ name: String, _ role: String, _ n: Int) -> (Bool, String) {
+        guard AXIsProcessTrusted() else { return (false, "Macro Recorder has no Accessibility permission") }
+        guard let a = app(name) else { return (false, "not running: " + name) }
+        let want = "AX" + role.prefix(1).uppercased() + role.dropFirst().lowercased()
+        let hits = nodes(a).filter { $0.role.lowercased() == want.lowercased() }
+        guard n >= 1, n <= hits.count else { return (false, "no \(role) number \(n) (\(hits.count) found)") }
+        let el = hits[n - 1].el
+        a.activate()
+        Thread.sleep(forTimeInterval: 0.3)
+        AXUIElementSetAttributeValue(el, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        var count: AnyObject?
+        AXUIElementCopyAttributeValue(el, kAXNumberOfCharactersAttribute as CFString, &count)
+        var range = CFRange(location: (count as? Int) ?? 0, length: 0)
+        if let v = AXValueCreate(.cfRange, &range) { AXUIElementSetAttributeValue(el, kAXSelectedTextRangeAttribute as CFString, v) }
+        return (true, "focused \(role) \(n) of \(hits.count) in \(a.localizedName ?? name), cursor at the end")
+    }
+
     static func quit(_ name: String) -> (Bool, String) {
         guard let a = app(name) else { return (true, "was not running: " + name) }
         let n = a.localizedName ?? name

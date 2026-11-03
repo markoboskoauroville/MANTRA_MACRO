@@ -19,6 +19,7 @@ case "$1" in
   recalibrate) printf 'recalibrate: %s\n' "$2" > "$IN/$id.part" ;;
   capture-page) printf 'capture-page: %s | %s | %s\n' "$2" "${3:-down}" "${4:-$HOME/Desktop/page.png}" > "$IN/$id.part" ;;
   ax-read|ax-quit) printf '%s: %s\n' "$1" "$2" > "$IN/$id.part" ;;
+  ax-focus-end) printf 'ax-focus-end: %s | %s | %s\n' "$2" "${3:-textarea}" "${4:-1}" > "$IN/$id.part" ;;
   ax-press) printf 'ax-press: %s | %s\n' "$2" "$3" > "$IN/$id.part" ;;
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
   *) sed -n '2,11p' "$0"; exit 2 ;;
