@@ -105,3 +105,6 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 > This is our fifth app. If some features are missing, you need them. Please code them inside that app.
 
 - v13: `macro capture-window "<app or title>"` (the window's own pixels, also on another Space or behind others, no focus taken), `macro capture-screen <display>`, `macro capture-rect "x,y,w,h"`; default folder ~/.mantra_macro/captures/. **Status:** done 3.11.2026: v13 built, installed, relaunched, published; Resolve on another Space captured (2560x1415), screen and rect tested
+
+## 3.11.2026, triggers (Marko, Elevate Media session)
+Marko: "V1 [F1] is not working. Please use my application macro recorder to create a macro for this, and then it will work through the macro of mine. A switcher on our application is just enabling or disabling that macro remotely inside the macro recorder. If the macro recorder cannot do that remotely, you update the macro recorder as well"
