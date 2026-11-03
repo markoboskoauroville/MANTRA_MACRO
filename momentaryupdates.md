@@ -97,3 +97,11 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 "please whole page capture now built for my macro recorder"
 "once it is built, open my browser called Firefox, and then there is opened WhatsApp. You need to capture the whole stream of my chat with people in one image and save it on the desktop. I'm going to open it from the desktop"
 **Status:** done 2.11.2026: v11 built and published; no chat was open, so the whole chat list was captured (~/Desktop/WhatsApp chats 2.11.2026.png, 70 shots).
+
+## 3.11.2026: capturing goes through this app; missing features are coded into it
+
+> For any capturing work, screen capturing, put in a manifest. Marko build application, macro recorder, which can grab or press and do many things, and use it for your work.
+
+> This is our fifth app. If some features are missing, you need them. Please code them inside that app.
+
+- v13: `macro capture-window "<app or title>"` (the window's own pixels, also on another Space or behind others, no focus taken), `macro capture-screen <display>`, `macro capture-rect "x,y,w,h"`; default folder ~/.mantra_macro/captures/. **Status:** doing
