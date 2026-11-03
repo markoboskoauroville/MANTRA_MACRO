@@ -795,33 +795,36 @@ final class Overlay {
         // centred along the bottom edge, a little above it to clear the Dock
         p.setFrame(NSRect(x: f.midX - w / 2, y: f.minY + 46, width: w, height: h), display: true)
     }
+    // v15 (Marko, 3.11.2026: "reprogram the Macro Recorder to write its messages and statuses on the menu bar, not on
+    // the nose of the user"): every word goes beside the menu bar icon (a coloured dot and the text), nothing on screen
+    weak var item: NSStatusItem?                      // set by App.menuBarIcon
+    var text = "", busy = false
+    func render() {
+        guard let b = item?.button else { return }
+        let t = text.count > 60 ? String(text.prefix(59)) + "…" : text
+        if t.isEmpty && !busy { item?.length = NSStatusItem.squareLength; b.attributedTitle = NSAttributedString(string: ""); b.imagePosition = .imageOnly; return }
+        item?.length = NSStatusItem.variableLength; b.imagePosition = .imageLeading
+        let s = NSMutableAttributedString(string: " ● ", attributes: [.foregroundColor: dotColour, .font: NSFont.systemFont(ofSize: 9)])
+        s.append(NSAttributedString(string: t + (busy ? (t.isEmpty ? "working…" : " …") : ""),
+                                    attributes: [.font: NSFont.menuBarFont(ofSize: 0)]))
+        b.attributedTitle = s
+    }
+    var dotColour: NSColor = .white
     func show(_ t: String, _ c: NSColor, for secs: Double? = nil, after: (() -> Void)? = nil) {
-        label.stringValue = t; label.sizeToFit()
-        let w = max(70, min(440, label.frame.width + 34)), h: CGFloat = 26
-        place(panel, w: w, h: h)
-        label.frame.origin = NSPoint(x: 22, y: 5)
-        dot.layer?.backgroundColor = c.cgColor
-        panel.orderFrontRegardless()
+        text = t; dotColour = c; render()
         hide?.cancel(); hide = nil
         if let s = secs {
             let job = DispatchWorkItem { [weak self] in
-                if let a = after { a() } else { self?.panel.orderOut(nil) }
+                if let a = after { a() } else { self?.text = ""; self?.render() }
             }
             hide = job; DispatchQueue.main.asyncAfter(deadline: .now() + s, execute: job)
         }
     }
-    func off() { hide?.cancel(); hide = nil; panel.orderOut(nil) }
-    // reference counted, so a ClickImage that looks again and again keeps one steady spinner
-    func spinStart() {
-        depth += 1
-        guard depth == 1 else { return }
-        place(spin, w: 210, h: 30)
-        // above the status line when both show
-        var f = spin.frame; f.origin.y += 32; spin.setFrame(f, display: true)
-        spinView.start(); spin.orderFrontRegardless()
-    }
-    func spinEnd() { depth = max(0, depth - 1); if depth == 0 { spinView.stop(); spin.orderOut(nil) } }
-    func spinKill() { depth = 0; spinView.stop(); spin.orderOut(nil) }
+    func off() { hide?.cancel(); hide = nil; text = ""; render() }
+    // reference counted, so a ClickImage that looks again and again keeps one steady "…" in the menu bar
+    func spinStart() { depth += 1; if depth == 1 { busy = true; render() } }
+    func spinEnd() { depth = max(0, depth - 1); if depth == 0 { busy = false; render() } }
+    func spinKill() { depth = 0; busy = false; render() }
 }
 
 final class SpinnerView: NSView {

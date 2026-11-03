@@ -19,7 +19,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 14
+let VERSION = 16
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         m.addItem(withTitle: "Quit Macro Recorder", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         si.menu = m
         statusItem = si
+        Overlay.shared.item = si                 // v15: the messages go beside this icon, not on the screen
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let s = self, let b = s.statusItem?.button else { return }
             let tint: NSColor? = s.e.recording ? .systemRed : (s.e.playing ? .systemGreen : nil)

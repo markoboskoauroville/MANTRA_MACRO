@@ -851,6 +851,7 @@ enum Script {
         ("ImageExist",     "ImageExist(\"button.png\")",                "1 when the picture is on the screen now, else 0."),
         ("PixelGetColor",  "PixelGetColor(x, y)",                     "The colour at x, y as \"0xRRGGBB\"."),
         ("WinActivate",    "WinActivate \"Google Chrome\"",             "Bring the app with that name to the front."),
+        ("AXClick",        "AXClick \"Claude\", \"Prompt\"",            "Click the middle of that app's element with this label (or role), found through Accessibility; the pointer goes back."),
         ("WinExist",       "WinExist(\"Google Chrome\")",               "1 when an app or window with that name is open."),
         ("MenuSelect",     "MenuSelect \"DaVinci Resolve\", , \"Fairlight\", \"Presets Library\"", "Press a menu item of that app by its names (… or ... both match)."),
         ("WinGetPos",      "WinGetPos &x, &y, &w, &h, \"DaVinci Resolve\"", "The window's top left corner and size: click relative to it."),
@@ -1599,6 +1600,15 @@ enum Script {
             H["msgbox"] = { I, v, _ in I.host.say(toStr(a(v, 0)), true); return nil }
             H["tooltip"] = { I, v, _ in I.host.say(toStr(a(v, 0)), false); return nil }
             H["run"] = { I, v, _ in I.host.run(toStr(a(v, 0))); return nil }
+            // v16: AXClick "App", "label": a real click in the middle of that element (found through Accessibility),
+            // then the pointer goes back where it was; 1 when clicked, 0 when not found
+            H["axclick"] = { I, v, _ in
+                guard let p = AX.center(toStr(a(v, 0)), toStr(a(v, 1))) else { return .num(0) }
+                let old = I.host.mousePos()
+                try I.host.click("left", Double(p.x), Double(p.y), 1, [])
+                try I.host.mouseMove(Double(old.0), Double(old.1))
+                return .num(1)
+            }
             H["winactivate"] = { I, v, _ in .num(I.host.activate(toStr(a(v, 0))) ? 1 : 0) }
             H["menuselect"] = { I, v, line in
                 // MenuSelect WinTitle, WinText, "Menu", "Sub1", ... (AutoHotkey v2; WinText is ignored) -> 1 pressed, 0 not found

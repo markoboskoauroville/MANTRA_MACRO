@@ -43,6 +43,14 @@ cp docs/SCRIPT.md "$APP/Contents/Resources/SCRIPT.md"
 codesign --force -s "Mantra Apps" "$APP"
 rm -rf "/Applications/$NAME.app"; cp -R "$APP" /Applications/
 echo "built $APP (v$V) and installed it in /Applications"
+# v16 (Marko, 3.11.2026: "always restarting the app before I'm testing it, so I never end up testing the old version"):
+# the running copy is asked to quit and the new one opened, every build; the pids are printed
+OLD=$(pgrep -x MacroRecorder || true)
+[ -n "$OLD" ] && osascript -e 'quit app id "community.auroville.macrorecorder"' >/dev/null 2>&1 || true
+for i in $(seq 1 20); do pgrep -x MacroRecorder >/dev/null || break; sleep 0.3; done
+pgrep -x MacroRecorder >/dev/null && pkill -x MacroRecorder || true
+for i in 1 2 3 4 5; do open -g -a "/Applications/$NAME.app" 2>/dev/null; sleep 2; pgrep -x MacroRecorder >/dev/null && break; done
+echo "restarted: old pid ${OLD:-none}, new pid $(pgrep -x MacroRecorder || echo NOT RUNNING), v$V"
 # the release step: every new version reaches the page in the same run (MANTRA_MANIFEST download-always-latest.md)
 if [ "$PUBLISH" = 1 ]; then
   tools/make_dmg.sh

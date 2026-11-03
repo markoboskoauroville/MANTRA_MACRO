@@ -108,3 +108,6 @@ The first row of the window as in MANTRA_MANIFEST swift-apps.md "The first row o
 
 ## 3.11.2026, triggers (Marko, Elevate Media session)
 Marko: "V1 [F1] is not working. Please use my application macro recorder to create a macro for this, and then it will work through the macro of mine. A switcher on our application is just enabling or disabling that macro remotely inside the macro recorder. If the macro recorder cannot do that remotely, you update the macro recorder as well"
+
+Marko (3.11.2026, F1 works): "there is some annoying pop-up every time I press F1 ... reprogram the Macro Recorder to write its messages and statuses on the menu bar, not on the nose of the user."
+Marko: "Please add to the macro that it clicks inside the prompt box every time the cloud app is started. Start the app, then find this code box and click on it."

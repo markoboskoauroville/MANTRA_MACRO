@@ -226,3 +226,8 @@
 
 ## 3.11.2026 (v14)
 - Triggers: a Carbon hot key per macro (no permission), bound in bindKeys with the slots; a trigger never fires while a macro plays or records.
+
+## 3.11.2026 (v15, v16)
+- v15: every message and status goes beside the menu bar icon (dot + text), never a panel on the screen; the spinner is "…" there.
+- v16: AXClick "App", "label" clicks the middle of an element found through Accessibility and puts the pointer back. F1 Claude dictation: WinActivate, AXClick "Claude", "Prompt", F2. Tested 3.11.2026 15:39: Claude front, caret in Prompt, Speechify dictating, menu bar showed the macro name.
+- build.sh restarts the app every build and prints old and new pid (Marko: "so I never end up testing the old version").

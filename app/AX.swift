@@ -105,6 +105,20 @@ enum AX {
         return (true, "focused \(role) \(n) of \(hits.count) in \(a.localizedName ?? name), cursor at the end")
     }
 
+    // v16 (Marko, 3.11.2026: "clicks inside the prompt box every time the [Claude] app is started ... find this box and
+    // click on it"): the centre of the first element whose label (or role) matches, in global points, for a real click
+    static func center(_ name: String, _ label: String) -> CGPoint? {
+        guard AXIsProcessTrusted(), let a = app(name) else { return nil }
+        let all = nodes(a), want = norm(label)
+        let hit = all.first { norm($0.label) == want } ?? all.first { norm(String($0.role.dropFirst(2))) == want }
+            ?? all.first { norm($0.label).contains(want) }
+        guard let el = hit?.el, let pv = attr(el, kAXPositionAttribute), let sv = attr(el, kAXSizeAttribute) else { return nil }
+        var p = CGPoint.zero, s = CGSize.zero
+        AXValueGetValue(pv as! AXValue, .cgPoint, &p); AXValueGetValue(sv as! AXValue, .cgSize, &s)
+        guard s.width > 0, s.height > 0 else { return nil }
+        return CGPoint(x: p.x + s.width / 2, y: p.y + s.height / 2)
+    }
+
     static func quit(_ name: String) -> (Bool, String) {
         guard let a = app(name) else { return (true, "was not running: " + name) }
         let n = a.localizedName ?? name
