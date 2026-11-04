@@ -1,38 +1,28 @@
-// The icon, drawn (MANTRA_MANIFEST swift-apps.md 4): what the app does, a recording written down as a script.
-// A dark tile; a red record dot at the top left; under it the script, four lines, each an amber command word and
-// sand arguments (Click x, y · Sleep · Send "text"); the version at the bottom (version-visible.md).
-// Writes icon_1024.png; build.sh makes the .icns from it.
+// make_icon.swift: the icon is six letters over one picture (Marko 4.11.2026: "I want 6 letters in this icon and one
+// symbolic background, and that's all"). It is made once, for every star app, by STAR_SWIFT/icons6/six_icon.swift and
+// kept beside this file as six_1024.png; this script only hands it to the build, in the form the build asks for:
+//   swift make_icon.swift [version]                -> icon_1024.png (and icon.png when one is there) in this folder
+//   swift make_icon.swift <version> <file.png>      -> that png
+//   swift make_icon.swift <dir.iconset> [version]   -> the ten sizes of an iconset
+// No version is drawn any more: the six letters are the whole icon.
 import AppKit
-let S: CGFloat = 1024
-let version = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "1"
-let img = NSImage(size: NSSize(width: S, height: S))
-img.lockFocus()
-let ctx = NSGraphicsContext.current!.cgContext
-let tile = CGRect(x: 100, y: 100, width: 824, height: 824)
-ctx.addPath(CGPath(roundedRect: tile, cornerWidth: 180, cornerHeight: 180, transform: nil))
-ctx.setFillColor(NSColor(srgbRed: 0.04, green: 0.05, blue: 0.06, alpha: 1).cgColor); ctx.fillPath()
-// the record dot: a ring and a red dot (CAMERA's record circle)
-let c = CGPoint(x: 290, y: 740)
-ctx.setStrokeColor(NSColor(srgbRed: 0.78, green: 0.8, blue: 0.82, alpha: 1).cgColor); ctx.setLineWidth(14)
-ctx.strokeEllipse(in: CGRect(x: c.x - 82, y: c.y - 82, width: 164, height: 164))
-ctx.setFillColor(NSColor(srgbRed: 1, green: 0.23, blue: 0.19, alpha: 1).cgColor)
-ctx.fillEllipse(in: CGRect(x: c.x - 56, y: c.y - 56, width: 112, height: 112))
-// "REC" beside it, in the dot's red
-("REC" as NSString).draw(at: NSPoint(x: 410, y: 690), withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 110, weight: .bold),
-                                                                       .foregroundColor: NSColor(srgbRed: 1, green: 0.23, blue: 0.19, alpha: 1)])
-// the script: a command word in amber, its arguments in sand
-let amber = NSColor(srgbRed: 0.91, green: 0.64, blue: 0.24, alpha: 1), sand = NSColor(srgbRed: 0.95, green: 0.87, blue: 0.71, alpha: 0.55)
-for (i, (cw, aw)) in [(150, 230), (150, 120), (130, 300), (150, 200)].enumerated() {
-    let y = 540 - CGFloat(i) * 78
-    ctx.addPath(CGPath(roundedRect: CGRect(x: 200, y: y, width: CGFloat(cw), height: 40), cornerWidth: 14, cornerHeight: 14, transform: nil))
-    ctx.setFillColor(amber.cgColor); ctx.fillPath()
-    ctx.addPath(CGPath(roundedRect: CGRect(x: 200 + CGFloat(cw) + 26, y: y, width: CGFloat(aw), height: 40), cornerWidth: 14, cornerHeight: 14, transform: nil))
-    ctx.setFillColor(sand.cgColor); ctx.fillPath()
+let me = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+let src = me.appendingPathComponent("six_1024.png").path
+let fm = FileManager.default
+func put(_ to: String) { try? fm.removeItem(atPath: to); try! fm.copyItem(atPath: src, toPath: to) }
+func sized(_ px: Int, _ to: String) {
+    let p = Process(); p.launchPath = "/usr/bin/sips"; p.arguments = ["-z", "\(px)", "\(px)", src, "--out", to]
+    p.standardOutput = FileHandle.nullDevice; p.launch(); p.waitUntilExit()
 }
-// the version, light on the dark ground
-("v" + version as NSString).draw(at: NSPoint(x: 210, y: 140), withAttributes: [.font: NSFont.systemFont(ofSize: 92, weight: .semibold),
-                                                                                 .foregroundColor: NSColor(white: 0.78, alpha: 1)])
-img.unlockFocus()
-let rep = NSBitmapImageRep(data: img.tiffRepresentation!)!
-try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "icon_1024.png"))
-print("icon_1024.png v" + version)
+let args = Array(CommandLine.arguments.dropFirst())
+if let set = args.first(where: { $0.hasSuffix(".iconset") }) {
+    try? fm.createDirectory(atPath: set, withIntermediateDirectories: true)
+    for (n, p) in [("16x16", 16), ("16x16@2x", 32), ("32x32", 32), ("32x32@2x", 64), ("128x128", 128), ("128x128@2x", 256),
+                   ("256x256", 256), ("256x256@2x", 512), ("512x512", 512), ("512x512@2x", 1024)] { sized(p, "\(set)/icon_\(n).png") }
+} else if let png = args.first(where: { $0.hasSuffix(".png") }) {
+    put(png)
+} else {
+    let cwd = fm.currentDirectoryPath
+    if src != "\(cwd)/icon_1024.png" { put("\(cwd)/icon_1024.png") }
+    if fm.fileExists(atPath: "\(cwd)/icon.png") { put("\(cwd)/icon.png") }
+}
