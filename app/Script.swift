@@ -44,6 +44,7 @@ protocol ScriptHost: AnyObject {
     func run(_ what: String)
     func activate(_ title: String) -> Bool
     func winExists(_ title: String) -> Bool
+    func winActive(_ title: String) -> Bool
     func menuSelect(_ title: String, _ path: [String]) -> Bool
     func winGetPos(_ title: String) -> (Double, Double, Double, Double)?
     func recalibrate(_ name: String) -> (Bool, String)
@@ -853,6 +854,7 @@ enum Script {
         ("WinActivate",    "WinActivate \"Google Chrome\"",             "Bring the app with that name to the front."),
         ("AXClick",        "AXClick \"Claude\", \"Prompt\"",            "Click the middle of that app's element with this label (or role), found through Accessibility; the pointer goes back."),
         ("WinExist",       "WinExist(\"Google Chrome\")",               "1 when an app or window with that name is open."),
+        ("WinActive",      "WinActive(\"iTerm\")",                      "1 when that app is the one in front (v17)."),
         ("MenuSelect",     "MenuSelect \"DaVinci Resolve\", , \"Fairlight\", \"Presets Library\"", "Press a menu item of that app by its names (… or ... both match)."),
         ("WinGetPos",      "WinGetPos &x, &y, &w, &h, \"DaVinci Resolve\"", "The window's top left corner and size: click relative to it."),
         ("Recalibrate",    "Recalibrate \"macro name\"",              "Move that macro's clicks to where its window is now (compares the stored view with a new picture)."),
@@ -1632,6 +1634,7 @@ enum Script {
                 return .str(r.1)
             }
             H["winexist"] = { I, v, _ in .num(I.host.winExists(toStr(a(v, 0))) ? 1 : 0) }
+            H["winactive"] = { I, v, _ in .num(I.host.winActive(toStr(a(v, 0))) ? 1 : 0) }
             H["winwaitactive"] = { I, v, line in
                 let title = toStr(a(v, 0)), deadline = I.host.now() + (try optNum(a(v, 2), line, 10)!)
                 while true {
@@ -1863,3 +1866,6 @@ enum Script {
         return lines.joined(separator: "\n") + "\n"
     }
 }
+
+// v17 (Marko, 4.11.2026: "it needs to detect if I'm in ... iTerm"): a host without a front app says no
+extension ScriptHost { func winActive(_ title: String) -> Bool { false } }

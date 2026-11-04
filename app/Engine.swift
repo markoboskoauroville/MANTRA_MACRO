@@ -714,6 +714,10 @@ final class MacHost: ScriptHost {
         }
     }
     func winExists(_ title: String) -> Bool { onMain { findApp(title) != nil || windowOwner(title) != nil } }
+    // WinActive (v17, 4.11.2026): the front app's name contains the title, without case
+    func winActive(_ title: String) -> Bool {
+        onMain { (NSWorkspace.shared.frontmostApplication?.localizedName ?? "").lowercased().contains(title.lowercased()) }
+    }
     // MenuSelect (v6, 31.10.2026): the app's menu bar through Accessibility, each name matched without case, "…" = "..."
     func menuSelect(_ title: String, _ path: [String]) -> Bool {
         guard let app = onMain({ findApp(title) ?? windowOwner(title).flatMap { NSRunningApplication(processIdentifier: $0) } }) else { return false }

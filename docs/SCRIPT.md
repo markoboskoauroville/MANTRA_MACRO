@@ -227,7 +227,7 @@ MsgBox o["name"]
 
 - `WinActivate "Google Chrome"` brings the app to the front. `WinExist("Google Chrome")` is 1
 - `AXClick "Claude", "Prompt"` clicks the middle of the element with that label (or role, e.g. "textarea") in that app, found through Accessibility, wherever the window is; the pointer goes back where it was. 1 when clicked, 0 when not found (v16).
-  when it is open. `WinWaitActive "Google Chrome", , 10` brings it forward and waits up to ten seconds.
+  when it is open. `WinActive("iTerm")` is 1 when that app is the one in front (v17). `WinWaitActive "Google Chrome", , 10` brings it forward and waits up to ten seconds.
 - `MenuSelect "DaVinci Resolve", , "Fairlight", "Presets Library"` presses that menu item of the app (Accessibility;
   `…` and `...` both match, a name may be the start of the item's name). An error when the item is not there.
 - `WinGetPos &x, &y, &w, &h, "Presets Library"` puts a window's top left and size into the variables: a window whose

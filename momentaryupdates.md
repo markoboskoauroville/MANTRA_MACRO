@@ -111,3 +111,9 @@ Marko: "V1 [F1] is not working. Please use my application macro recorder to crea
 
 Marko (3.11.2026, F1 works): "there is some annoying pop-up every time I press F1 ... reprogram the Macro Recorder to write its messages and statuses on the menu bar, not on the nose of the user."
 Marko: "Please add to the macro that it clicks inside the prompt box every time the cloud app is started. Start the app, then find this code box and click on it."
+
+## 4.11.2026
+> Fix bug in F1 shortcut. If I am adding the text, the next text should go at the end of the previous text. Now it just jumps to the beginning, stubbornly.
+- Macro "F1 Claude dictation": after AXClick on the prompt, Command+Down puts the caret at the end of the text. **Status:** done, Marko tests
+> One more thing: the pop-up should indicate "Where am I?" If I am inside the item, then it writes there. If I'm not inside the item, and the item is in the background, then it's the same. Default actions going to our application. But if I'm inside the iTerm, it means I work with iTerm, and the same actions are going on there. Basically, it needs to detect if I'm in an item.item equal iTerm
+- v17: new `WinActive("iTerm")`; the F1 macro: iTerm in front → ToolTip "F1 → iTerm" and F2 there; else ToolTip "F1 → Claude", the Claude app as before. **Status:** done, Marko tests
