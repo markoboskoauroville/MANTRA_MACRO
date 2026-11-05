@@ -23,7 +23,9 @@ cp "$SRC/macro" "$BIN/macro" && chmod +x "$BIN/macro"
 pid=$(cat "$HOME/.mantra_macro/linux.pid" 2>/dev/null || true)
 if systemctl --user cat mantra-macro.service >/dev/null 2>&1; then
   [ -n "$pid" ] && ! systemctl --user is-active -q mantra-macro.service && kill "$pid" 2>/dev/null && sleep 1
+  rm -f "$HOME/.mantra_macro/linux.pid"
   systemctl --user restart mantra-macro.service
+  for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$HOME/.mantra_macro/linux.pid" ] && break; sleep 0.5; done   # ready for `macro`
   echo "installed $(basename "$PYZ"), running under mantra-macro.service"
 else
   [ -n "$pid" ] && kill "$pid" 2>/dev/null && sleep 1

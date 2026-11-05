@@ -26,7 +26,7 @@ jobs:
             exit 1
           fi
           gh release create "$TAG" linux/dist/*.pyz linux/dist/macro --title "Macro Recorder (Mantra) for Linux v$N" \
-            --notes "Linux build $N. Install: sh linux/install.sh"
+            --latest=false --notes "Linux build $N. Install: sh linux/install.sh"
           # keep the last two linux releases
           gh release list --limit 100 --json tagName --jq '[.[].tagName | select(startswith("linux-v"))] | sort_by(ltrimstr("linux-v") | tonumber) | reverse | .[2:][]' |
             while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
