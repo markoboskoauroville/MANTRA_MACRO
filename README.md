@@ -20,6 +20,30 @@ runs it; I assign any macro to any slot with check marks and reorder them in the
 user also learns AutoHotkey. If statements, loop statements, and all the other features." · "Load
 screenshots of the buttons, so the app can click by optical recognition of the patterns on my screen."
 
+## Linux (linux/, from 5.11.2026): the same app on the VM
+
+Marko, 5.11.2026: *"translate it to be able to run on this machine ... in the same repository we can have two versions of
+the same app: one for Linux and one for macOS, already built. Make a workflow to build it for Linux and then run it
+from here."*
+
+- **What it is:** `linux/mantra_macro/`, Python + GTK 3 on X11 (what the VM has; there is no Swift or AppKit there):
+  the same script language (`script.py`, the commands a macro uses: mouse, keys, Sleep, windows, Run, variables,
+  if/else, Loop, while), the same `~/.mantra_macro` folder, macros, `settings.json` slots and **inbox**, and the same
+  `macro` command (`linux/macro`: run, do, record, stop, list, show, version). Recording is X RECORD (`recorder.py`),
+  playing is xdotool (`backend.py`).
+- **Keys:** Ctrl+Alt+Super+R records, P plays the last, S stops; **Ctrl+Super+1…0** plays a slot (Ctrl+1…0, as on the
+  Mac, are Chrome's tab keys on Linux).
+- **Not yet on Linux:** RECALIBRATE and the picture commands (ClickImage, WaitImage, ImageSearch), AXClick/MenuSelect,
+  CapturePage. A script using them stops with "unknown command" on its line.
+- **Build:** `linux/build.sh` runs the tests (`linux/tests`, no screen needed) and writes
+  `linux/dist/N-mantra_macro_linux-vN.pyz` (one file, any CPU: the VM is arm64). **GitHub Actions**
+  (`.github/workflows/linux.yml`) does the same on every push to `linux/` and publishes release **`linux-vN`**, keeping
+  the last two. A push with an unchanged `VERSION` (linux/mantra_macro/__init__.py) fails on purpose.
+- **Install / update on the VM:** `sh linux/install.sh` takes the newest `linux-vN` release, puts it in
+  `~/.local/share/mantra_macro/` and `~/.local/bin/macro`, and restarts `mantra-macro.service` (a systemd user unit).
+- **Star:** it is the first app of the Linux star (STAR_SWIFT/linux), drawn in the VM's status bar.
+- **Reloading the Suno controller** (SUNO_SONGS) is a macro: `macro run "Reload suno_controller"`.
+
 ## Claude Code drives the Mac through it (v5, 31.10.2026)
 
 Marko: *"Please don't use Hammerspoon anymore. We have application called Macro Recorder. If it cannot do something, you

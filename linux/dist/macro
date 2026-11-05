@@ -1,0 +1,40 @@
+#!/bin/sh
+# macro (Linux): run a stored macro or a few lines of script through Macro Recorder (Mantra) and wait for the answer.
+#   macro run "<name>"        play ~/.mantra_macro/macros/<name>.ahk
+#   macro do 'Click 100, 200' run these lines (AutoHotkey v2 syntax, docs/SCRIPT.md)
+#   macro do - < file.ahk     run a script from stdin
+#   macro record "<name>"  /  macro stop     record a new macro, and stop and save it
+#   macro list                the stored macros, newest first
+#   macro show                bring the window up
+#   macro version             the installed build
+# Prints ok or the error; exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
+IN="$HOME/.mantra_macro/inbox"; mkdir -p "$IN"
+PYZ="${MANTRA_MACRO_PYZ:-$HOME/.local/share/mantra_macro/mantra_macro.pyz}"
+id="$(date +%s%N)-$$"
+case "$1" in
+  run) printf 'run: %s\n' "$2" > "$IN/$id.part" ;;
+  do)  if [ "$2" = "-" ]; then cat > "$IN/$id.part"; else printf '%s\n' "$2" > "$IN/$id.part"; fi ;;
+  record) printf 'record: %s\n' "$2" > "$IN/$id.part" ;;
+  stop) printf 'stop:\n' > "$IN/$id.part" ;;
+  list) printf 'list:\n' > "$IN/$id.part" ;;
+  show) printf 'show:\n' > "$IN/$id.part" ;;
+  version) exec python3 "$PYZ" --version ;;
+  *) sed -n '2,10p' "$0"; exit 2 ;;
+esac
+pid=$(cat "$HOME/.mantra_macro/linux.pid" 2>/dev/null)
+if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+  echo "Macro Recorder is not running (start it from the star, or: python3 $PYZ --hidden &)"; rm -f "$IN/$id.part"; exit 3
+fi
+mv "$IN/$id.part" "$IN/$id.ahk"
+t=0; lim=$(( ${MACRO_TIMEOUT:-120} * 10 ))
+while [ ! -f "$IN/$id.result.json" ]; do sleep 0.1; t=$((t+1)); [ $t -ge $lim ] && { echo "no answer in ${MACRO_TIMEOUT:-120} s"; exit 4; }; done
+f="$IN/$id.result.json"
+python3 - "$f" "$1" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1])); verb = sys.argv[2]
+msg = r.get('message', '')
+if r.get('ok'):
+    print(msg if verb in ('record', 'stop', 'list', 'show') else 'ok'); sys.exit(0)
+print('error%s: %s' % (' on line %d' % r['line'] if r.get('line') else '', msg)); sys.exit(1)
+PY
+s=$?; rm -f "$f"; exit $s

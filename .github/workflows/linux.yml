@@ -1,0 +1,32 @@
+# Linux build of Macro Recorder (Mantra): tests, the .pyz, a release tagged linux-vN. Only the last two linux releases
+# are kept (MANTRA_MANIFEST/modules/versioning.md §4). The Mac app (app/*.swift) is built on the Mac by build.sh.
+name: linux
+on:
+  push:
+    branches: [main]
+    paths: ['linux/**', '.github/workflows/linux.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build (runs the tests first)
+        run: sh linux/build.sh
+      - name: release linux-vN
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          N=$(python3 -c "import re;print(re.search(r'VERSION = (\d+)', open('linux/mantra_macro/__init__.py').read()).group(1))")
+          TAG="linux-v$N"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG already exists: bump VERSION in linux/mantra_macro/__init__.py (every change is a new number)"
+            exit 1
+          fi
+          gh release create "$TAG" linux/dist/*.pyz linux/dist/macro --title "Macro Recorder (Mantra) for Linux v$N" \
+            --notes "Linux build $N. Install: sh linux/install.sh"
+          # keep the last two linux releases
+          gh release list --limit 100 --json tagName --jq '[.[].tagName | select(startswith("linux-v"))] | sort_by(ltrimstr("linux-v") | tonumber) | reverse | .[2:][]' |
+            while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
