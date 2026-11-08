@@ -117,3 +117,8 @@ Marko: "Please add to the macro that it clicks inside the prompt box every time 
 - Macro "F1 Claude dictation": after AXClick on the prompt, Command+Down puts the caret at the end of the text. **Status:** done, Marko tests
 > One more thing: the pop-up should indicate "Where am I?" If I am inside the item, then it writes there. If I'm not inside the item, and the item is in the background, then it's the same. Default actions going to our application. But if I'm inside the iTerm, it means I work with iTerm, and the same actions are going on there. Basically, it needs to detect if I'm in an item.item equal iTerm
 - v17: new `WinActive("iTerm")`; the F1 macro: iTerm in front → ToolTip "F1 → iTerm" and F2 there; else ToolTip "F1 → Claude", the Claude app as before. **Status:** done, Marko tests
+
+## 8.11.2026, 13:20 (Marko, word for word)
+
+Please in my macro recorder mantra update at the top of the window should be drop-down menu with all the macros and there is a button load, but there is no button unload. So I want to hit unload button. So my macros are not loading, they're not triggering. And also each individual macro stored on disk can be with different triggering shortcut, and this triggering shortcut is defined actually here in the list, not in the script itself, in the list. So I can change it quickly. So there will be load, unload, edit, shortcut key. And for now, shortcut keys, please only use F keys. So it will be drop down menu. Very simple. And there will be also none, option none. So please build that.
+**Status:** saved first.
