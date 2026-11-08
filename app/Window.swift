@@ -118,13 +118,13 @@ struct MainView: View {
         return list.first ?? ""
     }
     func chooserMenu(_ list: [String], _ n: String) -> some View {
-        let sel = Binding<String>(get: { n }, set: { v in e.chosen = v; e.changed() })
+        let sel = SwiftUI.Binding<String>(get: { n }, set: { v in e.chosen = v; e.changed() })
         return Picker("", selection: sel) {
             ForEach(list, id: \.self) { (m: String) in Text(rowText(m)).tag(m) }
         }.labelsHidden().pickerStyle(.menu).frame(maxWidth: .infinity).accessibilityIdentifier("macro-chooser")
     }
     func keyMenu(_ n: String) -> some View {
-        let sel = Binding<String>(get: { fKeyOf(n) }, set: { v in e.setFKey(n, v) })
+        let sel = SwiftUI.Binding<String>(get: { fKeyOf(n) }, set: { v in e.setFKey(n, v) })
         return Picker("", selection: sel) {
             ForEach(MainView.FKEYS, id: \.self) { (k: String) in Text(k.isEmpty ? "NONE" : k.uppercased()).tag(k) }
         }.labelsHidden().pickerStyle(.menu).frame(width: 90).accessibilityIdentifier("macro-key")
