@@ -68,6 +68,15 @@ final class Inbox {
             }
             return
         }
+        // v19: OCR through Apple Vision (Ocr.swift)
+        for cmd in ["ocr:", "find-text:", "click-text:", "wait-text:"] where trimmed.hasPrefix(cmd) {
+            let arg = String(trimmed.dropFirst(cmd.count))
+            DispatchQueue.global(qos: .userInitiated).async {
+                let r = Ocr.fromInbox(cmd, arg)
+                DispatchQueue.main.async { self.finish(id, r.ok, r.message, nil) }
+            }
+            return
+        }
         // v11: "capture-page: x, y, w, h | down | /path/file.png" the whole page as one picture (PageCapture.swift)
         if trimmed.hasPrefix("capture-page:") {
             let arg = String(trimmed.dropFirst("capture-page:".count))

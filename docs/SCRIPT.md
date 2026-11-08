@@ -93,6 +93,21 @@ if ClickImage("generate.png", 5) {
 }
 ```
 
+## Reading the text on the screen: OCR (v19, 9.11.2026)
+
+Apple's Vision framework, on this Mac, nothing sent anywhere (the Mac's free equivalent of Google's ML Kit text
+recognition, which exists only for Android and iOS). The area is `"screen"` (default), `"screen:2"`,
+`"window:Google Chrome"` (that window's own pixels, even behind others) or `"rect:x,y,w,h"`.
+
+- `OcrText("window:Google Chrome")` returns every line of text, one per line, top to bottom.
+- `FindText("Add website")` gives the middle of those words as `[x, y]`, or 0. Case, accents and double spaces are ignored.
+- `ClickText "Add website"` reads and clicks it; `ClickText "Add", 10, "window:Google Chrome"` waits up to ten seconds.
+- `WaitText "Saved", 20` waits until the words are on the screen. Returns 1, or 0 on time out.
+
+From outside: `macro ocr [area] [--json]`, `macro find-text "<text>" [area]`, `macro click-text "<text>" [area]`,
+`macro wait-text "<text>" [seconds] [area]`. Needs Screen Recording.
+
+
 A picture is found when the screen looks at least 85% like it. Cut it tight around the button,
 with a little of the background. A picture cut on a Retina screen is tried at half and double size
 too, so it still works on the other monitor.

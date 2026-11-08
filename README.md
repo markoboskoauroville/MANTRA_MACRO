@@ -281,3 +281,23 @@ settings.json under "triggers". From outside: `macro trigger "<name>" f1 on`, `.
 state; the inbox line is `trigger: <name> | <key> | on|off`. A key already used by an action, a slot chord or another
 trigger is refused. First user: "F1 Claude dictation" (WinActivate "Claude", Sleep 150, Send "{F2}"), switched from the
 Elevate Media Project Monitor.
+
+## Eyes: reading the text on the screen, OCR (v19, 9.11.2026)
+
+Marko, 9.11.2026: *"take this free algorithm from Google ... the SDK to read the text on screen. Build it in a macro. It is
+OCR actually. And then it can read what's on the page ... scroll through the list and see my websites, and check if there are
+doubles."* Google's free on-device OCR is ML Kit Text Recognition v2, Android and iOS only. On the Mac the same kind of
+thing is Apple's **Vision** framework (`VNRecognizeTextRequest`, accurate, en/de, no correction so addresses stay as they
+are): built into macOS, no download, offline. `app/Ocr.swift`.
+
+- **Script:** `OcrText(area)`, `FindText(text [, area])`, `ClickText text [, secs [, area]]`, `WaitText text, secs [, area]`
+  (docs/SCRIPT.md). **Command line:** `macro ocr [area] [--json]`, `macro find-text`, `macro click-text`, `macro wait-text`.
+  Area: `screen`, `screen:N`, `window:<app or title>`, `rect:x,y,w,h`; every box is in global points, so a click lands on it.
+- **Screen Recording** is the one permission (already used for pictures).
+- **Use case, the list of websites:** `tools/ocr_dedupe.py` normalises addresses read by OCR (http/https, www, trailing slash,
+  case) and reports exact duplicates; the macro `partnernet-list` scrolls the PartnerNet website list and feeds it.
+  Deleting an extra entry is done only after two reads agree, keeping one, and read back.
+- **Phones, planned (not built):** ML Kit Text Recognition v2 in the Android remote app (Mantra Remote), the *bundled* model
+  `com.google.mlkit:text-recognition:16.0.1` (offline, Latin script), fed by a MediaProjection frame or an AccessibilityService
+  screenshot; the same four commands (`ocr`, `find-text`, `click-text`, `wait-text`) over the remote's existing socket, boxes
+  in the phone's pixels. Left as the documented next step: the Pixel 7 emulator (Pixel_7_API_35) can test it, GitHub builds it.

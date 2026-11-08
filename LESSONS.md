@@ -235,3 +235,8 @@
 - 8.11.2026: the app has its own `struct Binding` (Store.swift, a key chord). In SwiftUI code write `SwiftUI.Binding<…>`;
   a bare `Binding(get:set:)` made swiftc time out ("unable to type-check this expression") and then "cannot specialize
   non-generic type 'Binding'".
+
+- 9.11.2026 (v19): Google ML Kit text recognition is Android/iOS only; on the Mac use Vision (VNRecognizeTextRequest). Vision's
+  boxes are normalised with the origin bottom left: flip y before clicking. Language correction off for web addresses.
+  tests/run_script_tests.sh no longer compiles on its own (Script.swift needs AX and PageCapture since v11/v16): the tests are
+  checked only where the whole app builds.

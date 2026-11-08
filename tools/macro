@@ -10,6 +10,8 @@
 #   macro capture-window "<app or title>" [file.png]   that window's own pixels, also on another Space or behind others (v13)
 #   macro capture-screen <display name part | 1,2..> [file.png]   /   macro capture-rect "x,y,w,h" [file.png]   (v13)
 #     captures go to ~/.mantra_macro/captures/ unless a file is given; prints the path
+#   macro ocr [screen|window:<app>|rect:x,y,w,h] [--json]   the text on screen, lines with their middle x,y (Apple Vision, v19)
+#   macro find-text "<text>" [area]  /  macro click-text "<text>" [area]  /  macro wait-text "<text>" [secs] [area]
 #   macro trigger "<name>" [key] [on|off]   that macro's own key (f1, ctrl+alt+k) on or off; no key/state = report (v14)
 #   macro record "<name>"  /  macro stop     record a new macro under that name, and stop and save it (v8)
 # Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
@@ -23,12 +25,15 @@ case "$1" in
   recalibrate) printf 'recalibrate: %s\n' "$2" > "$IN/$id.part" ;;
   capture-page) printf 'capture-page: %s | %s | %s\n' "$2" "${3:-down}" "${4:-$HOME/Desktop/page.png}" > "$IN/$id.part" ;;
   capture-window|capture-screen|capture-rect) printf '%s: %s | %s\n' "$1" "$2" "$3" > "$IN/$id.part" ;;
+  ocr) a="${2:-screen}"; case "$a" in --json) a=screen; j=json;; esac; [ "$3" = "--json" ] && j=json; printf 'ocr: %s | %s\n' "$a" "${j:-text}" > "$IN/$id.part" ;;
+  find-text|click-text) printf '%s: %s | %s\n' "$1" "$2" "${3:-screen}" > "$IN/$id.part" ;;
+  wait-text) printf 'wait-text: %s | %s | %s\n' "$2" "${3:-10}" "${4:-screen}" > "$IN/$id.part"; MACRO_TIMEOUT=$(( ${3:-10} + 30 )) ;;
   trigger) printf 'trigger: %s | %s | %s\n' "$2" "$3" "$4" > "$IN/$id.part" ;;
   ax-read|ax-quit) printf '%s: %s\n' "$1" "$2" > "$IN/$id.part" ;;
   ax-focus-end) printf 'ax-focus-end: %s | %s | %s\n' "$2" "${3:-textarea}" "${4:-1}" > "$IN/$id.part" ;;
   ax-press) printf 'ax-press: %s | %s\n' "$2" "$3" > "$IN/$id.part" ;;
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
-  *) sed -n '2,15p' "$0"; exit 2 ;;
+  *) sed -n "2,17p" "$0"; exit 2 ;;
 esac
 mv "$IN/$id.part" "$IN/$id.ahk"
 pgrep -xq MacroRecorder || { echo "Macro Recorder is not running (open it from Applications)"; rm -f "$IN/$id.ahk"; exit 3; }
@@ -42,6 +47,8 @@ case "$1:$r" in
   capture-*:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   capture-page:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
   capture-page:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
+  ocr:*'"ok":true'*|find-text:*'"ok":true'*|click-text:*'"ok":true'*|wait-text:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
+  ocr:*|find-text:*|click-text:*|wait-text:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   ax-*:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
   ax-*:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   recalibrate:*'"ok":true'*|view:*'"ok":true'*|record:*'"ok":true'*|stop:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;

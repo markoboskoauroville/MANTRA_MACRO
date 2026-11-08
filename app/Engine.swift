@@ -696,6 +696,7 @@ final class MacHost: ScriptHost {
         try check()
         return r
     }
+    func ocrLines(_ spec: String) -> [OcrLine] { Ocr.read(spec).lines }
     func searchHold(_ on: Bool) { DispatchQueue.main.async { on ? Overlay.shared.spinStart() : Overlay.shared.spinEnd() } }
     func pixel(_ x: Double, _ y: Double) -> String { Eye.pixel(x, y) }
     func say(_ text: String, _ long: Bool) { e.sayWhilePlaying(text, long ? 3 : 1.6) }

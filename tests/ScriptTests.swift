@@ -35,6 +35,9 @@ class FakeHost: ScriptHost {
     func imageSearch(_ file: String, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) throws -> ImageHit? {
         let r = images[file]; put((r != nil ? "found " : "missed ") + file); return r
     }
+    var ocr: [OcrLine] = [OcrLine(text: "My websites", x: 100, y: 50, w: 200, h: 20, conf: 1),
+                          OcrLine(text: "https://www.Example.com/  Remove", x: 100, y: 100, w: 400, h: 20, conf: 1)]
+    func ocrLines(_ spec: String) -> [OcrLine] { ocr }
     func searchHold(_ on: Bool) {}
     func pixel(_ x: Double, _ y: Double) -> String { "0x112233" }
     func say(_ text: String, _ long: Bool) { said.append(text) }
@@ -251,6 +254,19 @@ func said(_ h: FakeHost, _ i: Int) -> String { i < h.said.count ? h.said[i] : "n
         ok(L.contains("click left 120,210 | missed gone.png"), "ClickImage clicks the centre")
         ok(said(h, 1) == "1 0 0 120,210 1", "ClickImage/WaitImage/FindImage/ImageExist results: " + said(h, 1))
         ok(h.t >= 2, "the waits took their time: \(h.t) s")
+
+        // v19 OCR: FindText, ClickText, WaitText, OcrText
+        (r, m, h) = run("""
+        f := FindText("my WEBSITES")
+        n := FindText("nothing here")
+        k := ClickText("Remove")
+        w := WaitText("nothing here", 1)
+        MsgBox f[1] "," f[2] " " n " " k " " w " " InStr(OcrText("screen"), "Remove")
+
+        """)
+        ok(r, "text commands run: " + m)
+        ok(said(h, 0) == "200,60 0 1 0 39", "FindText/ClickText/WaitText/OcrText results: " + said(h, 0))
+        ok(logs(h).contains("click left 461,110"), "ClickText clicks the middle of the word inside the line: " + logs(h))
 
         // built-in variables, clipboard, windows, run
         (r, m, h) = run("""

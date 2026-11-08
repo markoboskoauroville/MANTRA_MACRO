@@ -25,7 +25,28 @@ import Foundation
 
 struct ScriptStopped: Error {}                    // thrown by the host when the stop key is pressed; passes through untouched
 struct ImageHit { var x: Double; var y: Double; var w: Double; var h: Double; var score: Double }   // top-left, global points
+/// one line of text read off the screen (v19, OCR): its box in global points, top-left origin
+struct OcrLine { var text: String; var x: Double; var y: Double; var w: Double; var h: Double; var conf: Double }
+/// the line that holds `needle` (case, accents and double spaces ignored): an exact line first, then the topmost that
+/// contains it. The point is the middle of the needle's own letters inside the line, not of the whole line.
+func ocrMatch(_ lines: [OcrLine], _ needle: String) -> (line: OcrLine, cx: Double, cy: Double)? {
+    func norm(_ s: String) -> String {
+        s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+         .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+    let n = norm(needle); if n.isEmpty { return nil }
+    let hit = lines.first(where: { norm($0.text) == n })
+        ?? lines.filter({ norm($0.text).contains(n) }).min(by: { ($0.y, $0.x) < ($1.y, $1.x) })
+    guard let l = hit else { return nil }
+    let t = norm(l.text)
+    var f = 0.5
+    if let r = t.range(of: n), t.count > 0 {
+        f = (Double(t.distance(from: t.startIndex, to: r.lowerBound)) + Double(n.count) / 2) / Double(t.count)
+    }
+    return (l, l.x + l.w * f, l.y + l.h / 2)
+}
 protocol ScriptHost: AnyObject {
+    func ocrLines(_ spec: String) -> [OcrLine]   // v19: spec "screen", "window:App", "rect:x,y,w,h"; "" = the main screen
     func now() -> Double
     func sleep(_ seconds: Double) throws          // the host divides by speed itself; sleep(0) is the yield point
     func mouseMove(_ x: Double, _ y: Double) throws
@@ -55,6 +76,7 @@ protocol ScriptHost: AnyObject {
     func fileRead(_ p: String) -> String
     func fileAppend(_ text: String, _ p: String)
 }
+extension ScriptHost { func ocrLines(_ spec: String) -> [OcrLine] { [] } }
 
 // MARK: errors
 
@@ -846,6 +868,10 @@ enum Script {
         ("SendText",       "SendText \"text\"",                         "Type the text exactly, with no special meaning for ^ ! + # { }."),
         ("Sleep",          "Sleep milliseconds",                      "Wait. Sleep 500 is half a second."),
         ("ImageSearch",    "ImageSearch &x, &y, 0, 0, 0, 0, \"button.png\"", "Look for the picture on the screen. Returns 1 and sets x, y to its top left corner, or 0."),
+        ("OcrText",        "OcrText(\"window:Google Chrome\")",       "Read the text on the screen (Apple Vision, on this Mac). The area: \"screen\" (default), \"window:App or title\", \"rect:x,y,w,h\". Returns the lines, one per line."),
+        ("FindText",       "FindText(\"Add website\" [, area])",       "Where that text is on the screen, as [x, y] (the middle of the words), or 0 when it is not there."),
+        ("ClickText",      "ClickText \"Add website\" [, seconds [, area [, \"Right\"]]]", "Read the screen and click the middle of that text; waits up to the seconds given. Returns 1 or 0."),
+        ("WaitText",       "WaitText \"Saved\", seconds [, area]",     "Wait until that text is on the screen. Returns 1, or 0 when the time runs out."),
         ("ClickImage",     "ClickImage \"button.png\" [, seconds to wait]", "Find the picture on the screen and click its centre. Waits up to the seconds given. Returns 1 or 0."),
         ("WaitImage",      "WaitImage \"button.png\", seconds",         "Wait until the picture is on the screen. Returns 1, or 0 when the time runs out."),
         ("FindImage",      "FindImage(\"button.png\")",                 "The centre of the picture as [x, y], or 0 when it is not on screen."),
@@ -1587,6 +1613,31 @@ enum Script {
                 let button = a(v, 2).map { toStr($0).lowercased() } ?? "left"
                 return .num(try findLoop(I, toStr(a(v, 0)), try optNum(a(v, 1), line, 0)!, 0.4) { r in
                     try I.host.click(button, r.x + (r.w / 2).rounded(.down), r.y + (r.h / 2).rounded(.down), 1, I.heldMods())
+                } ? 1 : 0)
+            }
+            // v19 (Marko, 9.11.2026: "give it eyes: read the text on screen"): OCR through Apple Vision (Ocr.swift)
+            H["ocrtext"] = { I, v, _ in
+                .str(I.host.ocrLines(a(v, 0).map { toStr($0) } ?? "").map { $0.text }.joined(separator: "\n"))
+            }
+            H["findtext"] = { I, v, _ in
+                guard let m = ocrMatch(I.host.ocrLines(a(v, 1).map { toStr($0) } ?? ""), toStr(a(v, 0))) else { return .num(0) }
+                return .arr(ArrBox([.num(m.cx.rounded()), .num(m.cy.rounded())]))
+            }
+            func textLoop(_ I: Interp, _ needle: String, _ secs: Double, _ spec: String, _ found: (Double, Double) throws -> Void) throws -> Bool {
+                let deadline = I.host.now() + secs
+                while true {
+                    if let m = ocrMatch(I.host.ocrLines(spec), needle) { try found(m.cx.rounded(), m.cy.rounded()); return true }
+                    if I.host.now() >= deadline { return false }
+                    try I.host.sleep(0.4)
+                }
+            }
+            H["waittext"] = { I, v, line in
+                .num(try textLoop(I, toStr(a(v, 0)), try optNum(a(v, 1), line, 10)!, a(v, 2).map { toStr($0) } ?? "") { _, _ in } ? 1 : 0)
+            }
+            H["clicktext"] = { I, v, line in
+                let button = a(v, 3).map { toStr($0).lowercased() } ?? "left"
+                return .num(try textLoop(I, toStr(a(v, 0)), try optNum(a(v, 1), line, 0)!, a(v, 2).map { toStr($0) } ?? "") { x, y in
+                    try I.host.click(button, x, y, 1, I.heldMods())
                 } ? 1 : 0)
             }
             H["capturepage"] = { I, v, line in
