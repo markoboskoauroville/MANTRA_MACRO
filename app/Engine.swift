@@ -23,6 +23,7 @@ final class Engine: ObservableObject {
     @Published var capturing: String?          // the action whose key is being caught
     @Published var tick = 0                    // anything on disk changed: the window reads again
     var text: String?                          // the script in the player
+    var chosen = ""                            // v18: the macro shown in the window's drop-down (outlives .id(tick))
     var pending: String?                       // the name a New Macro recording is saved under
     var playName = ""
 
@@ -284,6 +285,33 @@ final class Engine: ObservableObject {
         settings.triggers[n] = t; settings.save(); bindKeys(); changed()
         return (true, n + ": " + keyLabel(Binding(mods: t.mods, key: t.key)) + " " + (t.on ? "on" : "off"))
     }
+    // v18 (Marko, 8.11.2026: "load, unload, edit, shortcut key ... only use F keys ... also none"): the top row of the window.
+    // The key lives in the list (settings.json "triggers"), never in the script. LOAD = in the player and its key plays it;
+    // UNLOAD = out of the player and its key does nothing (kept, so LOAD brings it back).
+    func isLoaded(_ n: String) -> Bool { settings.triggers[n]?.on == true || current == n }
+    func loadForTop(_ n: String) {
+        _ = loadMacro(n, quiet: true)
+        if var t = settings.triggers[n], !t.key.isEmpty { t.on = true; settings.triggers[n] = t; settings.save(); bindKeys() }
+        say("loaded: " + n + (settings.triggers[n].map { ", " + keyLabel(Binding(mods: $0.mods, key: $0.key)) + " plays it" } ?? ""))
+        changed()
+    }
+    func unload(_ n: String) {
+        if var t = settings.triggers[n] { t.on = false; settings.triggers[n] = t; settings.save(); bindKeys() }
+        if current == n { current = nil; text = nil; settings.current = nil; settings.save() }
+        say("unloaded: " + n + ", its key does nothing now")
+        changed()
+    }
+    // "" = NONE: the key taken away; "f1" … "f12": that key plays it (on at once)
+    func setFKey(_ n: String, _ key: String) {
+        if key.isEmpty {
+            settings.triggers[n] = nil; settings.save(); bindKeys(); changed()
+            say(n + ": no key"); return
+        }
+        guard Macros.kind(n) == "script" else { say(n + " is a recording: EDIT it once to make it a script, then give it a key", GREYC, 3); return }
+        let r = setTrigger(n, key: key, on: true)
+        say(r.1, GREYC, r.0 ? 1.6 : 3)
+    }
+
     func runMacro(_ n: String, done: ((Bool, String?, Int?) -> Void)? = nil) {
         let go = { [weak self] (note: String?) in
             guard let s = self else { return }

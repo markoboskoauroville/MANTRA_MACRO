@@ -40,7 +40,9 @@ cat > "$APP/Contents/Info.plist" <<PL
 </dict></plist>
 PL
 cp docs/SCRIPT.md "$APP/Contents/Resources/SCRIPT.md"
-codesign --force -s "Mantra Apps" "$APP"
+codesign --force -s "${SIGN:-Mantra Apps}" "$APP"
+# GitHub Actions (SIGN=- NO_INSTALL=1): build and sign ad hoc only; the Mac installs the release (compile-on-github.md)
+if [ "${NO_INSTALL:-0}" = 1 ]; then echo "built $APP (v$V), not installed (NO_INSTALL=1)"; exit 0; fi
 rm -rf "/Applications/$NAME.app"; cp -R "$APP" /Applications/
 echo "built $APP (v$V) and installed it in /Applications"
 # v16 (Marko, 3.11.2026: "always restarting the app before I'm testing it, so I never end up testing the old version"):

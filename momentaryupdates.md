@@ -122,3 +122,4 @@ Marko: "Please add to the macro that it clicks inside the prompt box every time 
 
 Please in my macro recorder mantra update at the top of the window should be drop-down menu with all the macros and there is a button load, but there is no button unload. So I want to hit unload button. So my macros are not loading, they're not triggering. And also each individual macro stored on disk can be with different triggering shortcut, and this triggering shortcut is defined actually here in the list, not in the script itself, in the list. So I can change it quickly. So there will be load, unload, edit, shortcut key. And for now, shortcut keys, please only use F keys. So it will be drop down menu. Very simple. And there will be also none, option none. So please build that.
 **Status:** saved first.
+**Status (8.11.2026):** v18 pushed: MACRO drop-down at the top with LOAD / UNLOAD / EDIT / KEY (NONE, F1–F12); first GitHub workflow.

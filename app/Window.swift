@@ -62,7 +62,7 @@ struct MainView: View {
         GeometryReader { g in
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
-                    top; transport; permissions; slots; macros; pictures; keys; playback; window; foot
+                    top; chooser; transport; permissions; slots; macros; pictures; keys; playback; window; foot
                 }
                 .frame(width: max(300, g.size.width - 28), alignment: .leading).clipped()
                 .padding(14)
@@ -96,6 +96,41 @@ struct MainView: View {
             Button(action: close) { Image(systemName: "xmark").font(.system(size: 15, weight: .medium)).foregroundColor(.off).frame(width: 30, height: 30) }
                 .buttonStyle(.plain).focusable(false).help("Close the window (it stays ON)")
                 .accessibilityLabel("Close window").accessibilityIdentifier("close")
+        }
+    }
+
+    // MARK: v18, the macro chooser (Marko, 8.11.2026): one drop-down with every macro, then LOAD, UNLOAD, EDIT and its key
+    // (F1 … F12 or NONE), kept in the list, not in the script
+
+    static let FKEYS = [""] + (1...12).map { "f\($0)" }
+    var chooser: some View {
+        let list = Macros.list()
+        let n = list.contains(e.chosen) ? e.chosen : (e.current.flatMap { list.contains($0) ? $0 : nil } ?? list.first ?? "")
+        let t = s.triggers[n]
+        let loaded = !n.isEmpty && e.isLoaded(n)
+        return Section(title: "MACRO") {
+            if list.isEmpty { Text("None yet: record one, or write one.").font(.system(size: 11)).foregroundColor(.off) }
+            else {
+                Picker("", selection: Binding(get: { n }, set: { e.chosen = $0; e.changed() })) {
+                    ForEach(list, id: \.self) { m in
+                        let k = s.triggers[m]
+                        Text(m + (k.map { "   " + keyLabel(Binding(mods: $0.mods, key: $0.key)) + ($0.on ? "" : " (unloaded)") } ?? "")).tag(m)
+                    }
+                }.labelsHidden().pickerStyle(.menu).frame(maxWidth: .infinity).accessibilityIdentifier("macro-chooser")
+                HStack(spacing: 6) {
+                    Word(text: "LOAD", color: loaded ? .on : .sand, help: "in the player, and its key plays it", ax: "load") { e.loadForTop(n) }
+                        .accessibilityValue(loaded ? "on" : "off")
+                    Word(text: "UNLOAD", color: loaded ? .sand : .off, help: "out of the player; its key does nothing until LOAD", ax: "unload") { e.unload(n) }
+                    Word(text: "EDIT", help: "open in the script editor", ax: "edit-chosen") { edit(n) }
+                    Spacer(minLength: 4)
+                    Text("KEY").font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundColor(.off)
+                    Picker("", selection: Binding(get: { t.map { $0.mods.isEmpty ? $0.key : "" } ?? "" }, set: { e.setFKey(n, $0) })) {
+                        ForEach(MainView.FKEYS, id: \.self) { k in Text(k.isEmpty ? "NONE" : k.uppercased()).tag(k) }
+                    }.labelsHidden().pickerStyle(.menu).frame(width: 90).accessibilityIdentifier("macro-key")
+                }
+                Text(loaded ? (t.map { keyLabel(Binding(mods: $0.mods, key: $0.key)) + " plays it" } ?? "loaded; no key yet") : "unloaded: no key plays it")
+                    .font(.system(size: 10)).foregroundColor(loaded ? .on : .off)
+            }
         }
     }
 
