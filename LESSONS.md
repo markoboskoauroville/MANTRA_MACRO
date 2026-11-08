@@ -231,3 +231,7 @@
 - v15: every message and status goes beside the menu bar icon (dot + text), never a panel on the screen; the spinner is "…" there.
 - v16: AXClick "App", "label" clicks the middle of an element found through Accessibility and puts the pointer back. F1 Claude dictation: WinActivate, AXClick "Claude", "Prompt", F2. Tested 3.11.2026 15:39: Claude front, caret in Prompt, Speechify dictating, menu bar showed the macro name.
 - build.sh restarts the app every build and prints old and new pid (Marko: "so I never end up testing the old version").
+
+- 8.11.2026: the app has its own `struct Binding` (Store.swift, a key chord). In SwiftUI code write `SwiftUI.Binding<…>`;
+  a bare `Binding(get:set:)` made swiftc time out ("unable to type-check this expression") and then "cannot specialize
+  non-generic type 'Binding'".
