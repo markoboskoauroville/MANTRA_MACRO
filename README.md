@@ -301,3 +301,7 @@ are): built into macOS, no download, offline. `app/Ocr.swift`.
   `com.google.mlkit:text-recognition:16.0.1` (offline, Latin script), fed by a MediaProjection frame or an AccessibilityService
   screenshot; the same four commands (`ocr`, `find-text`, `click-text`, `wait-text`) over the remote's existing socket, boxes
   in the phone's pixels. Left as the documented next step: the Pixel 7 emulator (Pixel_7_API_35) can test it, GitHub builds it.
+
+## Windows: move and arrange (v20)
+
+WinMove, WinSnap (Rectangle's halves, thirds, quarters, maximize, center, next/previous display), WinMinimize, WinMaximize, WinRestore, WinMoveTop/Bottom and `macro win-list|win-move|win-snap`, through Accessibility only. Ported from Rectangle (MIT): THIRD_PARTY/LICENSE.md. See docs/SCRIPT.md.

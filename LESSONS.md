@@ -240,3 +240,9 @@
   boxes are normalised with the origin bottom left: flip y before clicking. Language correction off for web addresses.
   tests/run_script_tests.sh no longer compiles on its own (Script.swift needs AX and PageCapture since v11/v16): the tests are
   checked only where the whole app builds.
+
+46. **Windows move through Accessibility, never the mouse (v20, 9.11.2026).** Rectangle's own order is size, position, size
+    again, because macOS limits a size to the screen the window is on; with AXEnhancedUserInterface on, an app animates and
+    the sets fail, so it is switched off for the move and back. NSScreen is bottom-left origin, Accessibility top-left of the
+    main screen: flip with the main screen's maxY. `visibleFrame` already leaves out the menu bar and the Dock. AXRaise only
+    lifts a window within its own app; WinMoveBottom is likewise per app. Code and licence: app/WinMgr.swift, THIRD_PARTY/.

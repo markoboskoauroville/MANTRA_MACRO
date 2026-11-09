@@ -779,6 +779,7 @@ final class MacHost: ScriptHost {
         guard let r = mine.compactMap(rect).max(by: { $0.width * $0.height < $1.width * $1.height }) else { return nil }
         return (Double(r.minX), Double(r.minY), Double(r.width), Double(r.height))
     }
+    func winOp(_ op: String, _ args: [String]) -> (Bool, String) { WinMgr.fromInbox(op + ":", args.joined(separator: " | ")) }
     // Recalibrate "name" (v8): runs on the player's thread, so the pictures it takes do not stop the window
     func recalibrate(_ name: String) -> (Bool, String) {
         let r = Recal.recalibrate(name.isEmpty ? e.playName : name)

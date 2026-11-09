@@ -69,6 +69,7 @@ protocol ScriptHost: AnyObject {
     func menuSelect(_ title: String, _ path: [String]) -> Bool
     func winGetPos(_ title: String) -> (Double, Double, Double, Double)?
     func recalibrate(_ name: String) -> (Bool, String)
+    func winOp(_ op: String, _ args: [String]) -> (Bool, String)   // v20: WinMove / WinSnap / WinMinimize ... (WinMgr.swift)
     func clipboard() -> String
     func setClipboard(_ v: String)
     func screen() -> (Double, Double)
@@ -882,6 +883,13 @@ enum Script {
         ("WinExist",       "WinExist(\"Google Chrome\")",               "1 when an app or window with that name is open."),
         ("WinActive",      "WinActive(\"iTerm\")",                      "1 when that app is the one in front (v17)."),
         ("MenuSelect",     "MenuSelect \"DaVinci Resolve\", , \"Fairlight\", \"Presets Library\"", "Press a menu item of that app by its names (… or ... both match)."),
+        ("WinMove",        "WinMove x, y, w, h, \"Title\"",           "Move and resize that window (AutoHotkey order; leave a number empty to keep it). Screen points, 0, 0 = top left of the main screen. Accessibility only: no mouse, no focus (v20)."),
+        ("WinSnap",        "WinSnap \"Title\", \"left-half\" [, display]", "Rectangle's arrangements: left-half, right-half, top-half, bottom-half, maximize, almost-maximize, center, first-third, center-third, last-third, first-two-thirds, last-two-thirds, top-left, top-right, bottom-left, bottom-right, next-display, previous-display. Display = a number or a name part (\"BenQ\", \"MacBook\") (v20)."),
+        ("WinMinimize",    "WinMinimize \"Title\"",                    "Minimize that window to the Dock (v20)."),
+        ("WinMaximize",    "WinMaximize \"Title\"",                    "Fill the visible frame of its screen, like Rectangle's maximize (never macOS full screen) (v20)."),
+        ("WinRestore",     "WinRestore \"Title\"",                     "Bring a minimized window back, else put it where it was before the last move or snap (v20)."),
+        ("WinMoveTop",     "WinMoveTop \"Title\"",                     "Raise the window above its app's other windows (another app's windows stay: that needs focus) (v20)."),
+        ("WinMoveBottom",  "WinMoveBottom \"Title\"",                  "Put it under its app's other windows (v20)."),
         ("WinGetPos",      "WinGetPos &x, &y, &w, &h, \"DaVinci Resolve\"", "The window's top left corner and size: click relative to it."),
         ("Recalibrate",    "Recalibrate \"macro name\"",              "Move that macro's clicks to where its window is now (compares the stored view with a new picture)."),
         ("WinWaitActive",  "WinWaitActive \"Google Chrome\", , seconds", "Bring the app forward and wait for it."),
@@ -1678,6 +1686,27 @@ enum Script {
                 for k in 0..<4 where a(v, k) != nil { try I.setRef(a(v, k), .num(vals[k]), line) }
                 return nil
             }
+            // v20 (9.11.2026, ported from Rectangle, WinMgr.swift): WinMove x, y, w, h, "Title" (empty = keep), WinMinimize,
+            // WinMaximize, WinRestore, WinMoveTop, WinMoveBottom "Title", WinSnap "Title", "left-half" [, display]
+            func argStr(_ v: [Value?], _ i: Int) -> String { i < v.count ? (v[i].map { toStr($0) } ?? "") : "" }
+            H["winmove"] = { I, v, line in
+                let r = I.host.winOp("win-move", (0..<5).map { argStr(v, $0) })
+                if !r.0 { throw ScriptError(line: line, msg: r.1) }
+                return nil
+            }
+            for (name, op) in [("winminimize", "win-minimize"), ("winmaximize", "win-maximize"), ("winrestore", "win-restore"),
+                               ("winmovetop", "win-top"), ("winmovebottom", "win-bottom")] {
+                H[name] = { I, v, line in
+                    let r = I.host.winOp(op, [argStr(v, 0)])
+                    if !r.0 { throw ScriptError(line: line, msg: r.1) }
+                    return nil
+                }
+            }
+            H["winsnap"] = { I, v, line in
+                let r = I.host.winOp("win-snap", [argStr(v, 0), argStr(v, 1), argStr(v, 2)])
+                if !r.0 { throw ScriptError(line: line, msg: r.1) }
+                return nil
+            }
             H["recalibrate"] = { I, v, line in
                 // Recalibrate "name" (v8): that macro's clicks follow its window to where it is now; returns the summary
                 let r = I.host.recalibrate(a(v, 0).map { toStr($0) } ?? "")
@@ -1920,3 +1949,5 @@ enum Script {
 
 // v17 (Marko, 4.11.2026: "it needs to detect if I'm in ... iTerm"): a host without a front app says no
 extension ScriptHost { func winActive(_ title: String) -> Bool { false } }
+
+extension ScriptHost { func winOp(_ op: String, _ args: [String]) -> (Bool, String) { (true, "") } }

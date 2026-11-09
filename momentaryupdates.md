@@ -129,3 +129,4 @@ Please in my macro recorder mantra update at the top of the window should be dro
 
 "Since Macro Recorder doesn't have a way to move windows, you need to create that part. Copy the source code from Rectangle, which is installed on my computer and available on GitHub, and make my Macro Recorder able to arrange and move windows around as Rectangle does." (Today `macro do 'WinMove ...'` failed: "no command or function called WinMove".)
 **Status:** saved first.
+**Status (9.11.2026):** v20: app/WinMgr.swift (ported from Rectangle, THIRD_PARTY/LICENSE.md), WinMove/WinSnap/WinMinimize/WinMaximize/WinRestore/WinMoveTop/WinMoveBottom, `macro win-list|win-move|win-snap|...`; pushed for GitHub to build; tests follow.

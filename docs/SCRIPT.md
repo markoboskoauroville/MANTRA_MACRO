@@ -253,6 +253,35 @@ MsgBox o["name"]
 - `FileExist("/path")`, `FileRead("/path")`, `FileAppend "text", "/path"`.
 - `ExitApp` stops the macro.
 
+## Windows: move and arrange (v20, 9.11.2026)
+
+Marko, 9.11.2026: *"Macro Recorder doesn't have a way to move windows ... copy the source code from Rectangle ... make my
+Macro Recorder able to arrange and move windows around as Rectangle does."* The engine is ported from Rectangle (MIT,
+THIRD_PARTY/LICENSE.md): everything goes through Accessibility, the real mouse never moves and no app is brought forward.
+Coordinates are screen points, 0, 0 = the top left of the main screen (the one with the menu bar); a second screen to the
+right starts at the main screen's width, one above has negative y. `Title` is matched like WinActivate: a window whose
+title contains the text, else the app's biggest window; an empty title = the front app's focused window.
+
+- `WinMove x, y, w, h, "Title"` (AutoHotkey v2 order; leave a number empty to keep it: `WinMove , , 900, 700, "TextEdit"`)
+- `WinMinimize "Title"`, `WinMaximize "Title"` (fills the visible frame, below the menu bar and beside the Dock; never macOS
+  full screen), `WinRestore "Title"` (brings a minimized window back, else puts it where it was before the last move or snap)
+- `WinMoveTop "Title"` / `WinMoveBottom "Title"`: z-order inside the window's own app (across apps it needs focus, so it does not)
+- `WinGetPos &x, &y, &w, &h, "Title"` (unchanged) reads it back
+- `WinSnap "Title", "left-half", [display]`: left-half, right-half, top-half, bottom-half, maximize, almost-maximize,
+  center, first-third, center-third, last-third, first-two-thirds, last-two-thirds, top-left, top-right, bottom-left,
+  bottom-right, next-display, previous-display. On a portrait screen the thirds are rows (Rectangle's orientation rule).
+  `display` = a number (1 = main screen) or a name part ("BenQ", "MacBook" = the built-in one); empty = the screen the window is on.
+  next/previous-display keep the window's proportions on the other screen (a maximized one stays maximized); neighbours are
+  by x position, and wrap round.
+
+From the shell: `macro win-list` (app, title, x, y, w, h, display, z-order; "minimized" at the end), `macro win-move <x|-> <y|-> <w|-> <h|-> "<title>"`
+(`-` keeps), `macro win-snap "<title>" <action> [display]`, `macro win-minimize|win-maximize|win-restore|win-top|win-bottom "<title>"`.
+Each prints the window's new line, as win-list would.
+
+Gotchas: an app can refuse a size (a minimum size, a fixed-size panel): the window ends as large as it allows, so read it back
+with `win-list`. Apps with AXEnhancedUserInterface on are switched off for the instant of the move (Rectangle's workaround) and
+back. A window on another Space, or a full-screen one, may not answer. The Accessibility permission is the app's own.
+
 ## What is different from AutoHotkey on Windows
 
 - `#` is Command here, the Windows key there. `!` is Option here, Alt there.

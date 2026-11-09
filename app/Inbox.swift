@@ -68,6 +68,15 @@ final class Inbox {
             }
             return
         }
+        // v20: windows move and arrange (WinMgr.swift, ported from Rectangle)
+        for cmd in ["win-list:", "win-move:", "win-snap:", "win-minimize:", "win-maximize:", "win-restore:", "win-top:", "win-bottom:"] where trimmed.hasPrefix(cmd) {
+            let arg = String(trimmed.dropFirst(cmd.count))
+            DispatchQueue.global(qos: .userInitiated).async {
+                let r = WinMgr.fromInbox(cmd, arg)
+                DispatchQueue.main.async { self.finish(id, r.0, r.1, nil) }
+            }
+            return
+        }
         // v19: OCR through Apple Vision (Ocr.swift)
         for cmd in ["ocr:", "find-text:", "click-text:", "wait-text:"] where trimmed.hasPrefix(cmd) {
             let arg = String(trimmed.dropFirst(cmd.count))
