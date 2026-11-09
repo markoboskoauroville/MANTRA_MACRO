@@ -124,3 +124,8 @@ Please in my macro recorder mantra update at the top of the window should be dro
 **Status:** saved first.
 **Status (8.11.2026):** v18 pushed: MACRO drop-down at the top with LOAD / UNLOAD / EDIT / KEY (NONE, F1–F12); first GitHub workflow.
 **Status (8.11.2026, 13:26):** v18 built by GitHub (green after two fixes: SwiftUI.Binding vs the app's own Binding), installed from the release, signed Mantra Apps, restarted (pid 760 → 27438); the window captured: MACRO row with the drop-down (F1 Claude dictation), LOAD / UNLOAD / EDIT, KEY F1. Not yet pressed by Marko.
+
+## 9.11.2026, Marko (word for word): windows move and arrange
+
+"Since Macro Recorder doesn't have a way to move windows, you need to create that part. Copy the source code from Rectangle, which is installed on my computer and available on GitHub, and make my Macro Recorder able to arrange and move windows around as Rectangle does." (Today `macro do 'WinMove ...'` failed: "no command or function called WinMove".)
+**Status:** saved first.
