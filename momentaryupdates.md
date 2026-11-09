@@ -134,3 +134,6 @@ Please in my macro recorder mantra update at the top of the window should be dro
 ## 9.11.2026, Marko (word for word), later
 "When the macro is built with the new arrangement, please test it by shuffling all the windows which are now open in all possible configurations and then return back to the original one and confirm with a screenshot. I also want layouts of my applications in the macro: when I start a certain layout, it opens the apps and arranges them in windows."
 **Status:** v21 built by GitHub (green), installed, signed Mantra Apps, relaunched (pid 40985 -> 46442). Layouts + LAYOUTS panel done; shuffle test passed (180 snaps, 0 errors, 0 frames differ after `layout run`); image ~/Desktop/macro-window-test-before-after.png.
+
+## 9.11.2026, Marko: "Macro Recorder is getting better and better. Please store this layout for today ... a new dropdown menu: I just select and then I can recall it ... a button New, it stores the current situation"
+**Status:** v22 built by GitHub, installed, relaunched (pid 46442 -> 65677): LAYOUTS drop-down (newest first, pick = run, Delete submenu), NEW = d.m.yyyy (" 2", " 3"); tested through AX (NEW twice -> "9.11.2026 2/3", pick ran 9 of 9 windows, Delete removed both); before-test-9nov hidden as _before-test-9nov.json.
