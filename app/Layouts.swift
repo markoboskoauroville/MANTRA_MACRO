@@ -9,8 +9,20 @@ enum Layouts {
     static let dir = DIR + "/layouts"
     static func path(_ n: String) -> String { dir + "/" + n.replacingOccurrences(of: "/", with: "-") + ".json" }
 
+    /// newest first (by file date); a name starting with "_" is hidden from the list (the file stays)
     static func names() -> [String] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasSuffix(".json") }.map { String($0.dropLast(5)) }.sorted()
+        let fm = FileManager.default
+        let all = ((try? fm.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasSuffix(".json") && !$0.hasPrefix("_") }
+        func date(_ f: String) -> Date { ((try? fm.attributesOfItem(atPath: dir + "/" + f))?[.modificationDate] as? Date) ?? .distantPast }
+        return all.sorted { date($0) > date($1) }.map { String($0.dropLast(5)) }
+    }
+    /// today's name, d.m.yyyy, then "d.m.yyyy 2", "d.m.yyyy 3" ... (v22)
+    static func todayName() -> String {
+        let f = DateFormatter(); f.dateFormat = "d.M.yyyy"
+        let base = f.string(from: Date())
+        var n = base, i = 2
+        while has(path(n)) { n = base + " " + String(i); i += 1 }
+        return n
     }
     static func delete(_ n: String) -> (Bool, String) {
         guard has(path(n)) else { return (false, "no layout called " + n) }
@@ -124,6 +136,7 @@ enum Layouts {
         let n = arg.trimmingCharacters(in: .whitespaces)
         switch cmd {
         case "layout-save:": return save(n)
+        case "layout-new:": return save(todayName())
         case "layout-run:": return run(n)
         case "layout-delete:": return delete(n)
         default: return (true, names().joined(separator: "\n"))

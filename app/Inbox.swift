@@ -78,7 +78,7 @@ final class Inbox {
             return
         }
         // v21: layouts (Layouts.swift)
-        for cmd in ["layout-save:", "layout-run:", "layout-list:", "layout-delete:"] where trimmed.hasPrefix(cmd) {
+        for cmd in ["layout-save:", "layout-new:", "layout-run:", "layout-list:", "layout-delete:"] where trimmed.hasPrefix(cmd) {
             let arg = String(trimmed.dropFirst(cmd.count))
             DispatchQueue.global(qos: .userInitiated).async {
                 let r = Layouts.fromInbox(cmd, arg)

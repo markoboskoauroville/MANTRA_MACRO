@@ -64,7 +64,7 @@ struct MainView: View {
         GeometryReader { g in
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
-                    top; chooser; transport; permissions; slots; layouts; macros; pictures; keys; playback; window; foot
+                    top; chooser; transport; layouts; permissions; slots; macros; pictures; keys; playback; window; foot
                 }
                 .frame(width: max(300, g.size.width - 28), alignment: .leading).clipped()
                 .padding(14)
@@ -81,28 +81,27 @@ struct MainView: View {
 
     var layouts: some View {
         let list = Layouts.names()
-        return Section(title: "LAYOUTS", hint: "SAVE CURRENT stores where every visible window is. RUN opens the apps that are missing and puts every window back. Nothing is clicked and no window is brought forward.") {
+        return Section(title: "LAYOUTS", hint: "Pick one: it opens the apps that are missing and puts every window back (nothing is clicked, no window comes forward). NEW stores the windows as they are now, named with today's date.") {
             HStack(spacing: 8) {
-                TextField("layout name", text: $layoutName).textFieldStyle(.roundedBorder)
-                Word(text: "SAVE CURRENT", color: layoutName.trimmingCharacters(in: .whitespaces).isEmpty ? .off : .on, help: "store every visible window's place under this name", ax: "layout-save") {
-                    let n = layoutName.trimmingCharacters(in: .whitespaces); if n.isEmpty { return }
-                    DispatchQueue.global().async { let r = Layouts.save(n); DispatchQueue.main.async { layoutNote = r.1; layoutName = ""; e.changed() } }
+                Menu {
+                    ForEach(list, id: \.self) { n in
+                        Button(n) {
+                            layoutNote = "running " + n + " ..."
+                            DispatchQueue.global().async { let r = Layouts.run(n); DispatchQueue.main.async { layoutNote = r.1; e.changed() } }
+                        }
+                    }
+                    if !list.isEmpty {
+                        Divider()
+                        Menu("Delete") {
+                            ForEach(list, id: \.self) { n in Button(n) { _ = Layouts.delete(n); layoutNote = "deleted " + n; e.changed() } }
+                        }
+                    }
+                } label: { Text(list.isEmpty ? "no layouts yet" : "RECALL A LAYOUT").font(.system(size: 12, weight: .bold, design: .monospaced)) }
+                .menuStyle(.borderlessButton).frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("layout-menu")
+                Word(text: "NEW", color: .on, help: "store every visible window's place, named with today's date", ax: "layout-new") {
+                    DispatchQueue.global().async { let r = Layouts.save(Layouts.todayName()); DispatchQueue.main.async { layoutNote = r.1; e.changed() } }
                 }
             }
-            ForEach(list, id: \.self) { n in
-                HStack(spacing: 8) {
-                    Text(n).lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                    Word(text: "RUN", color: .on, help: "open the missing apps and arrange every window", ax: "layout-run-" + n) {
-                        layoutNote = "running " + n + " ..."
-                        DispatchQueue.global().async { let r = Layouts.run(n); DispatchQueue.main.async { layoutNote = r.1; e.changed() } }
-                    }
-                    Word(text: armed == "lay:" + n ? "SURE?" : "BIN", color: armed == "lay:" + n ? .rec : .off, help: "delete this layout", ax: "layout-delete-" + n) {
-                        if armed == "lay:" + n { _ = Layouts.delete(n); armed = nil; e.changed() } else { armed = "lay:" + n }
-                    }
-                }
-            }
-            if list.isEmpty { Text("None yet.").font(.system(size: 11)).foregroundColor(.off) }
             if !layoutNote.isEmpty { Text(layoutNote).font(.system(size: 11)).foregroundColor(.amber).fixedSize(horizontal: false, vertical: true) }
         }
     }
