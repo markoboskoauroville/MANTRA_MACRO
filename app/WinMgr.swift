@@ -107,6 +107,10 @@ enum WinMgr {
         }
         var byApp: [NSRunningApplication: [Win]] = [:]
         for a in all { byApp[a] = windows(of: a) }
+        if t.hasPrefix("#"), let n = UInt32(t.dropFirst()) {          // "#123": that window id (win-list prints it)
+            for a in all { if let w = byApp[a]?.first(where: { $0.id == n }) { return w } }
+            return nil
+        }
         for a in all { if let w = byApp[a]?.first(where: { $0.title.lowercased().contains(t) }) { return w } }
         let app = all.first { ($0.localizedName ?? "").lowercased() == t } ?? all.first { ($0.localizedName ?? "").lowercased().contains(t) }
         guard let a = app, let ws = byApp[a] else { return nil }
@@ -122,7 +126,7 @@ enum WinMgr {
     static func fmt(_ w: Win, _ s: [Scr]) -> String {
         guard let f = frame(w.el) else { return "\(w.app)\t\(w.title)\t?" }
         let d = screenOf(f, s)
-        return "\(w.app)\t\(w.title)\t\(Int(f.minX))\t\(Int(f.minY))\t\(Int(f.width))\t\(Int(f.height))\t\(d.n):\(d.name)\t\(zOrder(w.id))\(isMinimized(w.el) ? "\tminimized" : "")"
+        return "\(w.app)\t\(w.title)\t\(Int(f.minX))\t\(Int(f.minY))\t\(Int(f.width))\t\(Int(f.height))\t\(d.n):\(d.name)\t\(zOrder(w.id))\t#\(w.id)\(isMinimized(w.el) ? "\tminimized" : "")"
     }
     static func list() -> String {
         let s = screens()

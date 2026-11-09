@@ -35,7 +35,7 @@ enum Layouts {
                 out.append(["app": w.app, "bundle": a.bundleIdentifier ?? "", "path": a.bundleURL?.path ?? "", "title": w.title,
                             "display": d.name, "displayNumber": d.n, "frame": rectDict(f), "visible": rectDict(v),
                             "frac": ["x": (f.minX - v.minX) / v.width, "y": (f.minY - v.minY) / v.height, "w": f.width / v.width, "h": f.height / v.height],
-                            "z": WinMgr.zOrder(w.id)])
+                            "z": WinMgr.zOrder(w.id), "id": Int(w.id)])
             }
         }
         out.sort { ($0["z"] as? Int ?? 0) < ($1["z"] as? Int ?? 0) }
@@ -89,7 +89,7 @@ enum Layouts {
             let b = w["bundle"] as? String ?? "", title = w["title"] as? String ?? "", label = (w["app"] as? String ?? b) + " \"" + title + "\""
             guard let a = WinMgr.apps().first(where: { $0.bundleIdentifier == b }) else { missing.append(label); continue }
             let cands = WinMgr.windows(of: a).filter { !used.contains($0.id) }
-            guard let win = cands.first(where: { $0.title == title }) ?? cands.first(where: { !$0.title.isEmpty && title.contains($0.title) || $0.title.contains(title) && !title.isEmpty })
+            guard let win = cands.first(where: { Int($0.id) == (w["id"] as? Int ?? -1) }) ?? cands.first(where: { $0.title == title }) ?? cands.first(where: { !$0.title.isEmpty && title.contains($0.title) || $0.title.contains(title) && !title.isEmpty })
                     ?? cands.max(by: { (WinMgr.frame($0.el)?.area ?? 0) < (WinMgr.frame($1.el)?.area ?? 0) }) else { missing.append(label); continue }
             used.insert(win.id)
             guard let saved = rect(w["frame"] as? [String: Double]), let sv = rect(w["visible"] as? [String: Double]),
