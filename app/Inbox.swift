@@ -77,6 +77,15 @@ final class Inbox {
             }
             return
         }
+        // v21: layouts (Layouts.swift)
+        for cmd in ["layout-save:", "layout-run:", "layout-list:", "layout-delete:"] where trimmed.hasPrefix(cmd) {
+            let arg = String(trimmed.dropFirst(cmd.count))
+            DispatchQueue.global(qos: .userInitiated).async {
+                let r = Layouts.fromInbox(cmd, arg)
+                DispatchQueue.main.async { self.finish(id, r.0, r.1, nil) }
+            }
+            return
+        }
         // v19: OCR through Apple Vision (Ocr.swift)
         for cmd in ["ocr:", "find-text:", "click-text:", "wait-text:"] where trimmed.hasPrefix(cmd) {
             let arg = String(trimmed.dropFirst(cmd.count))

@@ -890,6 +890,8 @@ enum Script {
         ("WinRestore",     "WinRestore \"Title\"",                     "Bring a minimized window back, else put it where it was before the last move or snap (v20)."),
         ("WinMoveTop",     "WinMoveTop \"Title\"",                     "Raise the window above its app's other windows (another app's windows stay: that needs focus) (v20)."),
         ("WinMoveBottom",  "WinMoveBottom \"Title\"",                  "Put it under its app's other windows (v20)."),
+        ("Layout",        "Layout \"name\"",                         "Open the apps of that saved layout that are not running and put every window where it was saved (v21)."),
+        ("LayoutSave",    "LayoutSave \"name\"",                     "Save where every visible window is now, as a layout (v21)."),
         ("WinGetPos",      "WinGetPos &x, &y, &w, &h, \"DaVinci Resolve\"", "The window's top left corner and size: click relative to it."),
         ("Recalibrate",    "Recalibrate \"macro name\"",              "Move that macro's clicks to where its window is now (compares the stored view with a new picture)."),
         ("WinWaitActive",  "WinWaitActive \"Google Chrome\", , seconds", "Bring the app forward and wait for it."),
@@ -1696,6 +1698,13 @@ enum Script {
             }
             for (name, op) in [("winminimize", "win-minimize"), ("winmaximize", "win-maximize"), ("winrestore", "win-restore"),
                                ("winmovetop", "win-top"), ("winmovebottom", "win-bottom")] {
+                H[name] = { I, v, line in
+                    let r = I.host.winOp(op, [argStr(v, 0)])
+                    if !r.0 { throw ScriptError(line: line, msg: r.1) }
+                    return nil
+                }
+            }
+            for (name, op) in [("layout", "layout-run"), ("layoutsave", "layout-save")] {
                 H[name] = { I, v, line in
                     let r = I.host.winOp(op, [argStr(v, 0)])
                     if !r.0 { throw ScriptError(line: line, msg: r.1) }

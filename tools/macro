@@ -17,6 +17,7 @@
 #     first-third center-third last-third first-two-thirds last-two-thirds top-left top-right bottom-left bottom-right
 #     next-display previous-display; display = number or name part ("BenQ", "MacBook")
 #   macro win-minimize|win-maximize|win-restore|win-top|win-bottom "<title>"
+#   macro layout save|run|delete "<name>"  /  macro layout list   every visible window's place, brought back (opens missing apps) (v21)
 #   macro trigger "<name>" [key] [on|off]   that macro's own key (f1, ctrl+alt+k) on or off; no key/state = report (v14)
 #   macro record "<name>"  /  macro stop     record a new macro under that name, and stop and save it (v8)
 # Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
@@ -37,12 +38,13 @@ case "$1" in
   win-move) m() { [ "$1" = "-" ] && echo "" || echo "$1"; }; printf 'win-move: %s | %s | %s | %s | %s\n' "$(m "$2")" "$(m "$3")" "$(m "$4")" "$(m "$5")" "$6" > "$IN/$id.part" ;;
   win-snap) printf 'win-snap: %s | %s | %s\n' "$2" "$3" "$4" > "$IN/$id.part" ;;
   win-minimize|win-maximize|win-restore|win-top|win-bottom) printf '%s: %s\n' "$1" "$2" > "$IN/$id.part" ;;
+  layout) printf 'layout-%s: %s\n' "$2" "$3" > "$IN/$id.part" ;;
   trigger) printf 'trigger: %s | %s | %s\n' "$2" "$3" "$4" > "$IN/$id.part" ;;
   ax-read|ax-quit) printf '%s: %s\n' "$1" "$2" > "$IN/$id.part" ;;
   ax-focus-end) printf 'ax-focus-end: %s | %s | %s\n' "$2" "${3:-textarea}" "${4:-1}" > "$IN/$id.part" ;;
   ax-press) printf 'ax-press: %s | %s\n' "$2" "$3" > "$IN/$id.part" ;;
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
-  *) sed -n "2,24p" "$0"; exit 2 ;;
+  *) sed -n "2,26p" "$0"; exit 2 ;;
 esac
 mv "$IN/$id.part" "$IN/$id.ahk"
 pgrep -xq MacroRecorder || { echo "Macro Recorder is not running (open it from Applications)"; rm -f "$IN/$id.ahk"; exit 3; }
@@ -58,6 +60,8 @@ case "$1:$r" in
   capture-page:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   ocr:*'"ok":true'*|find-text:*'"ok":true'*|click-text:*'"ok":true'*|wait-text:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
   ocr:*|find-text:*|click-text:*|wait-text:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
+  layout:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
+  layout:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   win-*:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
   win-*:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   ax-*:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
