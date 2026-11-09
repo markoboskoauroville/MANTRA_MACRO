@@ -11,12 +11,18 @@ def norm(s):
     s = re.sub(r'^https?://', '', m.group(1)); s = re.sub(r'^www\.', '', s)
     return s.rstrip('/')
 
+# a line starting "---" begins a new read; the same address seen again within one read counts as a duplicate, across reads
+# (the page scrolled and shown twice) it does not. Only lines with a scheme (http) or a .pages.dev name are addresses.
 seen = collections.OrderedDict()
 for f in sys.argv[1:]:
+    rd = 0
     for n, line in enumerate(open(f, encoding='utf-8'), 1):
-        k = norm(line.split('\t')[-1])
-        if k: seen.setdefault(k, []).append(f"{f}:{n}: {line.strip()}")
-dups = {k: v for k, v in seen.items() if len(v) > 1}
+        if line.startswith('---'): rd += 1; continue
+        t = line.split('\t')[-1]
+        if not re.search(r'https?://|\.pages\.dev', t, re.I) or 'example.com' in t or 'B00AQL8VU4' in t: continue
+        k = norm(t)
+        if k: seen.setdefault(k, []).append((rd, f"{f}:{n}: {t.strip()}"))
+dups = {k: [x for _, x in v] for k, v in seen.items() if any(sum(1 for r, _ in v if r == q) > 1 for q in {r for r, _ in v})}
 print(f"{len(seen)} distinct, {len(dups)} duplicated")
 for k, v in dups.items():
     print(k); [print("   ", x) for x in v]
