@@ -246,3 +246,4 @@
     the sets fail, so it is switched off for the move and back. NSScreen is bottom-left origin, Accessibility top-left of the
     main screen: flip with the main screen's maxY. `visibleFrame` already leaves out the menu bar and the Dock. AXRaise only
     lifts a window within its own app; WinMoveBottom is likewise per app. Code and licence: app/WinMgr.swift, THIRD_PARTY/.
+47. **Layouts match windows by id first (v21).** Two windows of one app can share a title (Firefox "New Tab"); matching by title swapped them. A layout stores the window id; the id is stable while the window lives. Across apps the stacking cannot be restored without bringing apps forward, so only each app's own windows are raised back to front. A test of 9 windows x 20 snaps and `layout run` returned every frame within 2 pt.

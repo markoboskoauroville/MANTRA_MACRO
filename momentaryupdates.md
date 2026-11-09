@@ -130,3 +130,7 @@ Please in my macro recorder mantra update at the top of the window should be dro
 "Since Macro Recorder doesn't have a way to move windows, you need to create that part. Copy the source code from Rectangle, which is installed on my computer and available on GitHub, and make my Macro Recorder able to arrange and move windows around as Rectangle does." (Today `macro do 'WinMove ...'` failed: "no command or function called WinMove".)
 **Status:** saved first.
 **Status (9.11.2026):** v20: app/WinMgr.swift (ported from Rectangle, THIRD_PARTY/LICENSE.md), WinMove/WinSnap/WinMinimize/WinMaximize/WinRestore/WinMoveTop/WinMoveBottom, `macro win-list|win-move|win-snap|...`; pushed for GitHub to build; tests follow.
+
+## 9.11.2026, Marko (word for word), later
+"When the macro is built with the new arrangement, please test it by shuffling all the windows which are now open in all possible configurations and then return back to the original one and confirm with a screenshot. I also want layouts of my applications in the macro: when I start a certain layout, it opens the apps and arranges them in windows."
+**Status:** v21 built by GitHub (green), installed, signed Mantra Apps, relaunched (pid 40985 -> 46442). Layouts + LAYOUTS panel done; shuffle test passed (180 snaps, 0 errors, 0 frames differ after `layout run`); image ~/Desktop/macro-window-test-before-after.png.
