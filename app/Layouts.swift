@@ -47,6 +47,15 @@ enum Layouts {
         return (true, "saved \(n): \(out.count) windows on \(scr.count) display\(scr.count == 1 ? "" : "s")")
     }
 
+    /// the display by name (and size), else the nearest by size
+    static func target(_ scr: [WinMgr.Scr], _ name: String, _ sv: CGRect) -> (scr: WinMgr.Scr, fallback: Bool) {
+        for s in scr where s.name == name && abs(s.visible.width - sv.width) < 2 && abs(s.visible.height - sv.height) < 2 { return (s, false) }
+        for s in scr where s.name == name { return (s, false) }
+        var best = scr[0], bd = Double.infinity
+        for s in scr { let d = abs(Double(s.visible.width * s.visible.height - sv.width * sv.height)); if d < bd { bd = d; best = s } }
+        return (best, true)
+    }
+
     static func run(_ name: String) -> (Bool, String) {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path(name))),
               let doc = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -72,6 +81,7 @@ enum Layouts {
         }
         // 2. place every window, matched by app and title, else the next unmatched window of that app
         let scr = WinMgr.screens()
+        if scr.isEmpty { return (false, "no screen") }
         var used: Set<CGWindowID> = []
         var placed = 0, refused: [String] = [], missing: [String] = [], fallbacks: Set<String> = []
         var raise: [(Int, AXUIElement)] = []
@@ -86,12 +96,9 @@ enum Layouts {
                   let fr = w["frac"] as? [String: Double] else { continue }
             // the display: by name, else the nearest by size (and say so)
             let dn = w["display"] as? String ?? ""
-            var target = scr.first { $0.name == dn && abs($0.visible.width - sv.width) < 2 && abs($0.visible.height - sv.height) < 2 } ?? scr.first { $0.name == dn }
-            if target == nil {
-                target = scr.min { abs($0.visible.width * $0.visible.height - sv.width * sv.height) < abs($1.visible.width * $1.visible.height - sv.width * sv.height) }
-                fallbacks.insert(dn + " -> " + (target?.name ?? "?"))
-            }
-            guard let t = target else { continue }
+            let pick = target(scr, dn, sv)
+            if pick.fallback { fallbacks.insert(dn + " -> " + pick.scr.name) }
+            let t = pick.scr
             let same = abs(t.visible.minX - sv.minX) < 2 && abs(t.visible.minY - sv.minY) < 2 && abs(t.visible.width - sv.width) < 2 && abs(t.visible.height - sv.height) < 2
             let goal = same ? saved : CGRect(x: t.visible.minX + (fr["x"] ?? 0) * t.visible.width, y: t.visible.minY + (fr["y"] ?? 0) * t.visible.height,
                                              width: (fr["w"] ?? 0) * t.visible.width, height: (fr["h"] ?? 0) * t.visible.height).integral
