@@ -367,6 +367,7 @@ local PAGE = [==[
   <div class="row2"><button id="kBig">Open in the browser</button><button id="kFolder">Open the macros folder</button></div>
   <div class="path" id="folder"></div>
 </section>
+<p style="text-align:center;font-size:12px;opacity:.5;margin:24px 0">© 2026 Mantra Productions</p>
 
 <script>
 var BUILD = null, S = null, lastTxt = "", editing = null, armed = {}, dragFrom = null;
