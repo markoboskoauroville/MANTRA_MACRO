@@ -48,20 +48,20 @@ case "$1" in
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
   *) sed -n "2,26p" "$0"; exit 2 ;;
 esac
-# Keyboard and Mouse Guard (Marko, 12.11.2026: "the same guard ... must be used by the macro recorder: guard on and guard off").
-# Actions that move the mouse or press keys hold Marko's physical mouse and keyboard while they run (Esc Esc Esc gives them
-# back). If he has taken over, nothing is done. No guard app installed / no permission: the action runs as before.
+# The guard between Marko and Claude (Marko, 12.11.2026: "the same guard which Claude uses must be used by the macro
+# recorder: guard on and guard off"): Keyboard and Mouse Router (Mantra), 127.0.0.1:8870 (repo MANTRA_KEYBOARD_MOUSE_ROUTER).
+# Actions that move the mouse or press keys BORROW Marko's mouse and keyboard while they run (badge in the middle of the
+# screen; his hardware input is held and his keystrokes replayed afterwards; Escape held 2 s gives them back) and RETURN
+# them after, also on error. Router not running / already borrowed by another session: the action runs as before.
 # MACRO_GUARD=0 skips it.
 case "$1" in
   run|do|click-text)
-    if [ "${MACRO_GUARD:-1}" != 0 ] && command -v kmguard >/dev/null 2>&1; then
-      kmguard on $(( ${MACRO_TIMEOUT:-120} + 10 )) macro >/dev/null 2>&1; g=$?
-      if [ $g = 2 ]; then
-        rm -f "$IN/$id.part"
-        echo "Marko has taken the mouse and keyboard (Esc Esc Esc): not done. Ask him; 'kmguard clear' when he says done."
-        exit 5
-      fi
-      [ $g = 0 ] && trap 'kmguard off macro >/dev/null 2>&1' EXIT
+    if [ "${MACRO_GUARD:-1}" != 0 ]; then
+      secs=$(( ${MACRO_TIMEOUT:-120} + 5 )); [ $secs -gt 120 ] && secs=120
+      why=$(printf 'Macro Recorder: %s %s' "$1" "$(printf '%s' "$2" | head -c 60)" | tr -d '"\\' | tr '\n' ' ')
+      tok=$(curl -s -m 2 -X POST http://127.0.0.1:8870/borrow -H 'Content-Type: application/json' \
+            -d "{\"reason\":\"$why\",\"seconds\":$secs}" 2>/dev/null | sed -n 's/.*"ok" *: *true.*"token" *: *"\([^"]*\)".*/\1/p; s/.*"token" *: *"\([^"]*\)".*"ok" *: *true.*/\1/p' | head -1)
+      [ -n "$tok" ] && trap 'curl -s -m 2 -X POST http://127.0.0.1:8870/return -H "Content-Type: application/json" -d "{\"token\":\"'"$tok"'\"}" >/dev/null 2>&1' EXIT
     fi ;;
 esac
 mv "$IN/$id.part" "$IN/$id.ahk"
