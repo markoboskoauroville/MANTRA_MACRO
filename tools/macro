@@ -20,7 +20,9 @@
 #   macro layout new|save|run|delete "<name>"  /  macro layout list   every visible window's place, brought back (opens missing apps) (v21)
 #   macro trigger "<name>" [key] [on|off]   that macro's own key (f1, ctrl+alt+k) on or off; no key/state = report (v14)
 #   macro record "<name>"  /  macro stop     record a new macro under that name, and stop and save it (v8)
+#   macro has "<what you want to do>"   is it already stored? (the catalogue ~/Developer/MACRO_SKILLS, 12.11.2026); also: macro skills list|show|run|add|sync
 # Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
+case "$1" in has) shift; exec macroskill has "$@" ;; skills) shift; exec macroskill "$@" ;; esac
 IN="$HOME/.mantra_macro/inbox"; mkdir -p "$IN"
 id="$(date +%s)-$$"
 case "$1" in
@@ -45,6 +47,22 @@ case "$1" in
   ax-press) printf 'ax-press: %s | %s\n' "$2" "$3" > "$IN/$id.part" ;;
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
   *) sed -n "2,26p" "$0"; exit 2 ;;
+esac
+# Keyboard and Mouse Guard (Marko, 12.11.2026: "the same guard ... must be used by the macro recorder: guard on and guard off").
+# Actions that move the mouse or press keys hold Marko's physical mouse and keyboard while they run (Esc Esc Esc gives them
+# back). If he has taken over, nothing is done. No guard app installed / no permission: the action runs as before.
+# MACRO_GUARD=0 skips it.
+case "$1" in
+  run|do|click-text)
+    if [ "${MACRO_GUARD:-1}" != 0 ] && command -v kmguard >/dev/null 2>&1; then
+      kmguard on $(( ${MACRO_TIMEOUT:-120} + 10 )) macro >/dev/null 2>&1; g=$?
+      if [ $g = 2 ]; then
+        rm -f "$IN/$id.part"
+        echo "Marko has taken the mouse and keyboard (Esc Esc Esc): not done. Ask him; 'kmguard clear' when he says done."
+        exit 5
+      fi
+      [ $g = 0 ] && trap 'kmguard off macro >/dev/null 2>&1' EXIT
+    fi ;;
 esac
 mv "$IN/$id.part" "$IN/$id.ahk"
 pgrep -xq MacroRecorder || { echo "Macro Recorder is not running (open it from Applications)"; rm -f "$IN/$id.ahk"; exit 3; }
