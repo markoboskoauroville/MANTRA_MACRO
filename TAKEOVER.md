@@ -1,5 +1,19 @@
 # TAKEOVER: the macro recorder on a fresh Mac
 
+## 13.11.2026: the Linux build is the second location's hand (v3)
+Marko: "Macro Recorder needs to be translated to Linux, exactly the same as here." linux-v1/v2 (GTK + xdotool, the script language, the inbox) were
+already on the VM (mantra-macro.service, DISPLAY=:1). v3 adds `linux/mantra_macro/verbs.py` and the `macro` words of the Mac, same arguments:
+`capture-screen|capture-rect|capture-window` (ImageMagick import), `ocr`, `find-text`, `click-text`, `wait-text` (tesseract tsv, lines with their middle x,y),
+`win-list`, `win-move`, `win-snap` (all Rectangle actions on the one screen), `win-minimize|maximize|restore|top|bottom` (wmctrl/xdotool), `ax-quit` (closes the
+window), `lock|unlock|lock-status|request` (bookkeeping only), and `macro has|skills` through `macroskill`. Tests: tests/test_verbs.py (snap rectangles, tsv, verb
+detection), 15 in all. Built by .github/workflows/linux.yml as linux-v3, installed with `sh linux/install.sh`.
+**Differs from the Mac (v25/v26):** no Accessibility (`ax-read`, `ax-press`, `ax-focus-end`: needs gir1.2-atspi-2.0 and an app that exposes it; Chrome on the VM does
+not by default), no `capture-page`, `recalibrate`/`view`, `layout`, `trigger`, `login-dialog`, no real input lock (the Mac swallows Marko's input with an event tap;
+on X11 that would also swallow Claude's xdotool, and nobody sits at the VM during a run), one display (`next-display` is an error), `Recorder` uses X events,
+the script language is the Python interpreter of linux/mantra_macro/script.py (not Script.swift), so rare constructs may differ: test a script on the VM before trusting it.
+Shared with the Mac: the macros folder format (~/.mantra_macro/macros/*.ahk), the inbox protocol, the catalogue MACRO_SKILLS. Not auto-copied between machines:
+macros hold screen coordinates.  Sync: groq_ai_studio/two_locations_sync.sh installs a newer linux-vN when MANTRA_MACRO/linux changed.
+
 1. `git clone https://github.com/markoboskoauroville/MANTRA_MACRO ~/Developer/MANTRA_MACRO`
 2. The "Mantra Apps" signing certificate in the login keychain (MANTRA_MANIFEST modules/mac-app-signing.md).
 3. `sh tests/run_script_tests.sh && sh build.sh`: the language's 58 checks and RECALIBRATE's 15, then
