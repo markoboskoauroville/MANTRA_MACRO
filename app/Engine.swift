@@ -35,6 +35,7 @@ final class Engine: ObservableObject {
         if let c = settings.current { _ = loadMacro(c, quiet: true) }
         bindKeys()
         Inbox.shared.start()
+        LockServer.shared.start()
     }
     func stop() {
         if recording { stopRecording() }
@@ -42,6 +43,7 @@ final class Engine: ObservableObject {
         capture.stop()
         Hotkeys.shared.unbindAll()
         Inbox.shared.stop()
+        LockServer.shared.stop(); InputLock.shared.off()
         Overlay.shared.off(); Overlay.shared.spinKill()
     }
     func changed() { DispatchQueue.main.async { self.tick += 1 } }
@@ -312,11 +314,11 @@ final class Engine: ObservableObject {
         say(r.1, GREYC, r.0 ? 1.6 : 3)
     }
 
-    func runMacro(_ n: String, done: ((Bool, String?, Int?) -> Void)? = nil) {
+    func runMacro(_ n: String, by: Caller = .macro, done: ((Bool, String?, Int?) -> Void)? = nil) {
         let go = { [weak self] (note: String?) in
             guard let s = self else { return }
             guard s.loadMacro(n, quiet: true), let t = s.text else { done?(false, "no macro called " + n, nil); return }
-            s.runScript(t, n, done: done)
+            s.runScript(t, n, by: by, done: done)
             if let m = note { s.sayWhilePlaying("recalibrated first: " + m, 3) }
         }
         guard settings.autoRecal, Macros.kind(n) == "script", has(Refs.dir(n) + "/view.json") else { return go(nil) }
@@ -354,12 +356,43 @@ final class Engine: ObservableObject {
     let host = MacHost()
     var runId = 0
 
-    func runScript(_ t: String, _ name: String, done: ((Bool, String?, Int?) -> Void)? = nil) {
+    // v24: every run takes the input lock for its length (Lock.swift), whoever started it; `by` says who the bar names
+    var runHoldsLock = false
+    func releaseRunLock() { if runHoldsLock { runHoldsLock = false; InputLock.shared.runEnd() } }
+    /// the length of a script in seconds, when it can be told: a "; lock-seconds: N" line, else its Sleeps and steps
+    static func estimateSeconds(_ t: String) -> (secs: Int?, explicit: Bool) {
+        if let r = t.range(of: #"(?m)^\s*;\s*lock-seconds:\s*(\d+)"#, options: .regularExpression),
+           let n = Int(t[r].filter { $0.isNumber }), n > 0 { return (n, true) }
+        var ms = 0.0, steps = 0.0
+        for line in t.split(separator: "\n") {
+            let l = line.trimmingCharacters(in: .whitespaces)
+            if l.isEmpty || l.hasPrefix(";") { continue }
+            steps += 1
+            if let r = l.range(of: #"(?i)^sleep\s*\(?\s*(\d+)"#, options: .regularExpression) { ms += Double(l[r].filter { $0.isNumber }) ?? 0 }
+        }
+        let s = Int((ms / 1000 + steps * 0.35).rounded(.up))
+        return (s >= 3 ? s : nil, false)
+    }
+    func stopPlayingByOverride() {
+        host.stopped = true; playing = false
+        Overlay.shared.spinKill(); Overlay.shared.off(); tint("")
+        releaseRunLock()
+    }
+    func runScript(_ t: String, _ name: String, by: Caller = .macro, done: ((Bool, String?, Int?) -> Void)? = nil) {
         if playing { stopPlaying() }
+        releaseRunLock()
         switch Script.parse(t) {
         case .failure(let e):
             lastError = (name, e.line, e.text); say(e.text, GREYC, 4); done?(false, e.text, e.line)
         case .success(let prog):
+            let est = Engine.estimateSeconds(t)
+            let hard = est.secs.map { est.explicit ? $0 + 30 : $0 * 2 + 30 } ?? 600
+            if let why = InputLock.shared.runBegin(name: name, by: by, seconds: est.secs, hard: min(600, hard)) {
+                say(why, GREYC, 4); done?(false, why, nil); return
+            }
+            runHoldsLock = true
+            InputLock.shared.setLabel(name)
+            let ov0 = InputLock.shared.overrides
             runId += 1
             let id = runId
             playing = true; lastError = nil; playName = name
@@ -373,6 +406,11 @@ final class Engine: ObservableObject {
                     guard self.runId == id else { return }
                     let stopped = self.host.stopped
                     self.stopPlaying()
+                    if InputLock.shared.overrides != ov0 {      // v24: Marko pressed TAKE OVER during this run
+                        done?(false, "overridden by Marko: he took the Mac back (TAKE OVER); the macro stopped at its next step", r.line)
+                        self.say("overridden by Marko", GREYC, 3)
+                        return
+                    }
                     done?(r.ok, r.ok ? nil : (stopped ? "stopped" : (r.message ?? "error")), r.line)
                     if r.ok { self.say("done: " + name, GREYC, 1.2) }
                     else if !stopped {
@@ -396,6 +434,7 @@ final class Engine: ObservableObject {
         host.stopped = true
         playing = false
         Overlay.shared.spinKill(); Overlay.shared.off(); tint("")
+        releaseRunLock()
     }
     func togglePlay() { playing ? stopPlaying() : play() }
     // the stop key: whatever runs stops; a recording stopped this way is saved
@@ -593,7 +632,8 @@ final class MacHost: ScriptHost {
     }
     func sleep(_ seconds: Double) throws { try wait(seconds > 0 ? seconds / speed : 0) }
 
-    func pos() -> CGPoint { CGEvent(source: nil)?.location ?? .zero }
+    // v24: while the input lock is on, the macro's pointer is where the macro put it, not where Marko's hand has drifted it
+    func pos() -> CGPoint { InputLock.shared.pointer() ?? CGEvent(source: nil)?.location ?? .zero }
     static let BUTTONS: [String: (CGEventType, CGEventType, CGEventType, CGMouseButton)] = [
         "left": (.leftMouseDown, .leftMouseUp, .leftMouseDragged, .left),
         "right": (.rightMouseDown, .rightMouseUp, .rightMouseDragged, .right),
@@ -604,9 +644,10 @@ final class MacHost: ScriptHost {
         ev.flags = KeyMap.flags(mods)
         if b == .center { ev.setIntegerValueField(.mouseEventButtonNumber, value: 2) }
         if let c = clicks { ev.setIntegerValueField(.mouseEventClickState, value: Int64(c)) }
-        ev.post(tap: .cghidEventTap)
+        ev.markedPost()
     }
     func move(_ p: CGPoint) {
+        InputLock.shared.notePointer(p)
         CGWarpMouseCursorPosition(p); CGAssociateMouseAndMouseCursorPosition(1)
         mouse(.mouseMoved, p, .left, [])
     }
@@ -651,7 +692,7 @@ final class MacHost: ScriptHost {
     }
     func keyEvent(_ c: CGKeyCode, _ down: Bool, _ mods: [String]) {
         guard let ev = CGEvent(keyboardEventSource: src, virtualKey: c, keyDown: down) else { return }
-        ev.flags = KeyMap.flags(mods); ev.post(tap: .cghidEventTap)
+        ev.flags = KeyMap.flags(mods); ev.markedPost()
     }
     func key(_ mods: [String], _ name: String) throws {
         try check()
@@ -669,7 +710,7 @@ final class MacHost: ScriptHost {
                 guard let ev = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: down) else { continue }
                 ev.flags = []
                 ev.keyboardSetUnicodeString(stringLength: u.count, unicodeString: u)
-                ev.post(tap: .cghidEventTap)
+                ev.markedPost()
             }
             Thread.sleep(forTimeInterval: 0.01)
         }
@@ -680,7 +721,7 @@ final class MacHost: ScriptHost {
         switch dir { case "down": dy = -Int32(times); case "up": dy = Int32(times)
         case "left": dx = Int32(times); case "right": dx = -Int32(times); default: break }
         if let ev = CGEvent(scrollWheelEvent2Source: src, units: .line, wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0) {
-            ev.flags = KeyMap.flags(mods); ev.post(tap: .cghidEventTap)
+            ev.flags = KeyMap.flags(mods); ev.markedPost()
         }
         try wait(0.05)
     }

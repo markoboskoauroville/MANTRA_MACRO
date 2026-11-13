@@ -22,13 +22,20 @@
 #   macro login-dialog              (password on stdin) every password dialog on the Mac: filled, ALWAYS ALLOW / OK pressed (v23)
 #   macro record "<name>"  /  macro stop     record a new macro under that name, and stop and save it (v8)
 #   macro has "<what you want to do>"   is it already stored? (the catalogue ~/Developer/MACRO_SKILLS, 12.11.2026); also: macro skills list|show|run|add|sync
+#   macro lock "<text>" [seconds]  /  macro unlock  /  macro lock-status  /  macro request "<what for>"   the input lock held across
+#     several calls (v24, the phone's API): a bar CLAUDE · time · text, his mouse and keys swallowed, TAKE OVER gives it back.
+#     Every `macro do` / `macro run` locks by itself for its length; MACRO_SECONDS=N sets the countdown of a `macro do`.
+#     After TAKE OVER every run answers "overridden by Marko" until he clicks the orange blob GIVE THE MAC BACK TO CLAUDE.
 # Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
 case "$1" in has) shift; exec macroskill has "$@" ;; skills) shift; exec macroskill "$@" ;; esac
 IN="$HOME/.mantra_macro/inbox"; mkdir -p "$IN"
 id="$(date +%s)-$$"
 case "$1" in
   run) printf 'run: %s\n' "$2" > "$IN/$id.part" ;;
-  do)  if [ "$2" = "-" ]; then cat > "$IN/$id.part"; else printf '%s\n' "$2" > "$IN/$id.part"; fi ;;
+  do)  { [ -n "$MACRO_SECONDS" ] && printf '; lock-seconds: %s\n' "$MACRO_SECONDS"; if [ "$2" = "-" ]; then cat; else printf '%s\n' "$2"; fi; } > "$IN/$id.part" ;;
+  lock) printf 'lock: %s | %s\n' "${3:-0}" "$2" > "$IN/$id.part" ;;
+  unlock|lock-status) printf '%s:\n' "$1" > "$IN/$id.part" ;;
+  request) printf 'request: %s\n' "$2" > "$IN/$id.part" ;;
   record) printf 'record: %s\n' "$2" > "$IN/$id.part" ;;
   login-dialog) (umask 077; { printf 'login-dialog: '; head -c 4096; } > "$IN/$id.part") ;;
   stop) printf 'stop:\n' > "$IN/$id.part" ;;
@@ -48,7 +55,7 @@ case "$1" in
   ax-focus-end) printf 'ax-focus-end: %s | %s | %s\n' "$2" "${3:-textarea}" "${4:-1}" > "$IN/$id.part" ;;
   ax-press) printf 'ax-press: %s | %s\n' "$2" "$3" > "$IN/$id.part" ;;
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
-  *) sed -n "2,27p" "$0"; exit 2 ;;
+  *) sed -n "2,31p" "$0"; exit 2 ;;
 esac
 # The guard between Marko and Claude (Marko, 12.11.2026: "the same guard which Claude uses must be used by the macro
 # recorder: guard on and guard off"): Keyboard and Mouse Router (Mantra), 127.0.0.1:8870 (repo MANTRA_KEYBOARD_MOUSE_ROUTER).
@@ -82,6 +89,8 @@ case "$1:$r" in
   ocr:*|find-text:*|click-text:*|wait-text:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   layout:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
   layout:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
+  lock:*'"ok":true'*|unlock:*'"ok":true'*|lock-status:*'"ok":true'*|request:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
+  lock:*|unlock:*|lock-status:*|request:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   win-*:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
   win-*:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   ax-*:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;

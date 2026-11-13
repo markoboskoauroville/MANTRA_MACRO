@@ -57,7 +57,7 @@ enum PageCapture {
     private static func scroll(at p: CGPoint, pixels: Int32) {
         let src = CGEventSource(stateID: .hidSystemState)
         if let ev = CGEvent(scrollWheelEvent2Source: src, units: .pixel, wheelCount: 1, wheel1: pixels, wheel2: 0, wheel3: 0) {
-            ev.location = p; ev.post(tap: .cghidEventTap)
+            ev.location = p; ev.markedPost()
         }
     }
 

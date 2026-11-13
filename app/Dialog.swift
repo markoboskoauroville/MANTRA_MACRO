@@ -103,7 +103,7 @@ enum PwDialog {
                 guard let ev = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: down) else { continue }
                 ev.flags = []
                 ev.keyboardSetUnicodeString(stringLength: u.count, unicodeString: u)
-                ev.post(tap: .cghidEventTap)
+                ev.markedPost()
             }
             Thread.sleep(forTimeInterval: 0.012)
         }
@@ -111,7 +111,7 @@ enum PwDialog {
     static func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
         let src = CGEventSource(stateID: .hidSystemState)
         for down in [true, false] {
-            if let ev = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: down) { ev.flags = flags; ev.post(tap: .cghidEventTap) }
+            if let ev = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: down) { ev.flags = flags; ev.markedPost() }
         }
         Thread.sleep(forTimeInterval: 0.03)
     }
@@ -119,7 +119,7 @@ enum PwDialog {
         let src = CGEventSource(stateID: .hidSystemState)
         let back = CGEvent(source: nil)?.location
         for t in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
-            CGEvent(mouseEventSource: src, mouseType: t, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+            CGEvent(mouseEventSource: src, mouseType: t, mouseCursorPosition: p, mouseButton: .left)?.markedPost()
             Thread.sleep(forTimeInterval: 0.04)
         }
         if let b = back { CGWarpMouseCursorPosition(b) }        // his pointer goes back where it was

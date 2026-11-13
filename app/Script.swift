@@ -1738,7 +1738,16 @@ enum Script {
             H["fileread"] = { I, v, _ in .str(I.host.fileRead(toStr(a(v, 0)))) }
             H["fileappend"] = { I, v, _ in I.host.fileAppend(toStr(a(v, 0)), toStr(a(v, 1))); return nil }
             for k in ["setdefaultmousespeed", "setmousedelay", "setkeydelay", "coordmode", "sendmode", "setworkingdir",
-                      "settitlematchmode", "blockinput"] { H[k] = { _, _, _ in nil } }
+                      "settitlematchmode"] { H[k] = { _, _, _ in nil } }
+            // v24: BlockInput On / Off is the input lock (Lock.swift): On makes sure it is on for this run, Off lifts it
+            H["blockinput"] = { _, v, _ in
+                let w = toStr(a(v, 0)).lowercased()
+                DispatchQueue.main.async {
+                    if w == "off" || w == "0" { InputLock.shared.release() }
+                    else if w == "on" || w == "1" { if !InputLock.shared.locked { InputLock.shared.on("BlockInput", by: .macro) } }
+                }
+                return nil
+            }
             H["keywait"] = { I, _, _ in try I.host.sleep(0.05); return nil }
             return H
         }()

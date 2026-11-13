@@ -139,13 +139,35 @@ final class Inbox {
             let r = Engine.shared.setTrigger(n, key: key, on: st == "on" ? true : st == "off" ? false : nil)
             return finish(id, r.0, r.1, nil)
         }
+        // v24: the input lock (Lock.swift), the phone's API: "lock: <seconds> | <text>", "unlock:", "lock-status:", "request: <text>"
+        if trimmed.hasPrefix("lock:") || trimmed == "unlock:" || trimmed == "lock-status:" || trimmed.hasPrefix("request:") || trimmed.hasPrefix("through:") {
+            let L = InputLock.shared
+            let arg = String(trimmed.drop(while: { $0 != ":" }).dropFirst()).trimmingCharacters(in: .whitespaces)
+            var msg = ""
+            if trimmed.hasPrefix("lock:") {
+                let parts = arg.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+                let secs = parts.count > 1 ? Int(parts[0]) ?? 0 : 0
+                let text = parts.count > 1 ? parts[1...].joined(separator: " | ") : arg
+                if L.state == .overridden { return finish(id, false, "overridden by Marko: the Mac is his until he gives it back (blob GIVE THE MAC BACK TO CLAUDE)", nil) }
+                L.on(text.isEmpty ? "Working on the Mac. It will be yours again when this disappears." : text, seconds: secs)
+                msg = "lock " + L.state.rawValue
+                if L.state != .on, let p = L.problem { return finish(id, false, p, nil) }
+            } else if trimmed == "unlock:" { L.off(); msg = "lock off"
+            } else if trimmed.hasPrefix("request:") { L.request(arg.isEmpty ? "Claude needs the Mac for a moment." : arg); msg = "lock " + L.state.rawValue
+            } else if trimmed.hasPrefix("through:") { L.through(Int(arg) ?? 800); msg = "lock " + L.state.rawValue
+            } else {
+                let d = (try? JSONSerialization.data(withJSONObject: L.status())) ?? Data()
+                msg = String(decoding: d, as: UTF8.self)
+            }
+            return finish(id, true, msg, nil)
+        }
         if trimmed.hasPrefix("run:") {
             let n = trimmed.dropFirst(4).trimmingCharacters(in: .whitespaces)
             guard has(MAC_DIR + "/" + n + ".ahk") else { return finish(id, false, "no macro called " + n, nil) }
             // a stored macro plays the way the slots play it: recalibrated first when its window moved (v8)
-            return Engine.shared.runMacro(n) { ok, msg, line in self.finish(id, ok, msg, line) }
+            return Engine.shared.runMacro(n, by: .claude) { ok, msg, line in self.finish(id, ok, msg, line) }
         }
-        Engine.shared.runScript(text, "inbox " + id) { ok, msg, line in self.finish(id, ok, msg, line) }
+        Engine.shared.runScript(text, "macro do", by: .claude) { ok, msg, line in self.finish(id, ok, msg, line) }
     }
     private func finish(_ id: String, _ ok: Bool, _ msg: String?, _ line: Int?) {
         var o: [String: Any] = ["ok": ok, "at": Date().timeIntervalSince1970]

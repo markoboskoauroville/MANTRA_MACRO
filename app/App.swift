@@ -16,10 +16,13 @@
 // v8 (1.11.2026, Marko: "build a function called recalibrate"): a recording stores the view of every window clicked in;
 // RECAL (button, `macro recalibrate`, Recalibrate "name") moves the clicks to where that window is now, by its picture;
 // AUTO RECALIBRATE does it before a macro plays when its window moved. Recalibrate.swift, Coords.swift.
+// v24 (13.11.2026, Marko: "simply copy the system from the phone to this Mac"): THE INPUT LOCK (Lock.swift, a port of the
+// phone's Lock.kt): while any macro runs a thin bar at the top says CLAUDE · what · time left, an event tap swallows his
+// hands, TAKE OVER gives the Mac back; macro lock / unlock / lock-status / request, and 127.0.0.1:8829 like the phone.
 import AppKit
 import SwiftUI
 
-let VERSION = 23
+let VERSION = 24
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
 final class AppDelegate: NSObject, NSApplicationDelegate {

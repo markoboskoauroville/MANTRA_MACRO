@@ -105,7 +105,7 @@ enum Ocr {
             if cmd == "click-text:" {
                 CGWarpMouseCursorPosition(CGPoint(x: x, y: y))
                 for down in [true, false] {
-                    CGEvent(mouseEventSource: nil, mouseType: down ? .leftMouseDown : .leftMouseUp, mouseCursorPosition: CGPoint(x: x, y: y), mouseButton: .left)?.post(tap: .cghidEventTap)
+                    CGEvent(mouseEventSource: nil, mouseType: down ? .leftMouseDown : .leftMouseUp, mouseCursorPosition: CGPoint(x: x, y: y), mouseButton: .left)?.markedPost()
                     Thread.sleep(forTimeInterval: 0.05)
                 }
                 return (true, "clicked \(Int(x)),\(Int(y))  \(m.line.text)")
