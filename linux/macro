@@ -7,7 +7,14 @@
 #   macro list                the stored macros, newest first
 #   macro show                bring the window up
 #   macro version             the installed build
+#   macro has "<what>"  /  macro skills list|show|run|add|sync   the catalogue ~/Developer/MACRO_SKILLS (macroskill)
+#   macro capture-screen|capture-rect|capture-window <area> [file.png]   (v3; prints the path; default ~/.mantra_macro/captures/)
+#   macro ocr [screen|window:<title>|rect:x,y,w,h] [--json]   /  macro find-text|click-text "<text>" [area]  /  macro wait-text "<text>" [secs] [area]
+#   macro win-list  /  win-move <x|-> <y|-> <w|-> <h|-> "<title>"  /  win-snap "<title>" <action>  /  win-minimize|maximize|restore|top|bottom "<title>"
+#   macro lock "<text>" [secs] / unlock / lock-status / request "<why>"   bookkeeping only on Linux (no input grab)
+#   macro ax-quit "<title>"   close that window.  Not on Linux: ax-read, ax-press, capture-page, recalibrate, layout, trigger, login-dialog
 # Prints ok or the error; exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
+case "$1" in has) shift; exec macroskill has "$@" ;; skills) shift; exec macroskill "$@" ;; esac
 IN="$HOME/.mantra_macro/inbox"; mkdir -p "$IN"
 PYZ="${MANTRA_MACRO_PYZ:-$HOME/.local/share/mantra_macro/mantra_macro.pyz}"
 id="$(date +%s%N)-$$"
@@ -18,8 +25,19 @@ case "$1" in
   stop) printf 'stop:\n' > "$IN/$id.part" ;;
   list) printf 'list:\n' > "$IN/$id.part" ;;
   show) printf 'show:\n' > "$IN/$id.part" ;;
+  capture-window|capture-screen|capture-rect) printf '%s: %s | %s\n' "$1" "$2" "$3" > "$IN/$id.part" ;;
+  ocr) a="${2:-screen}"; case "$a" in --json) a=screen; j=json;; esac; [ "$3" = "--json" ] && j=json; printf 'ocr: %s | %s\n' "$a" "${j:-text}" > "$IN/$id.part" ;;
+  find-text|click-text) printf '%s: %s | %s\n' "$1" "$2" "${3:-screen}" > "$IN/$id.part" ;;
+  wait-text) printf 'wait-text: %s | %s | %s\n' "$2" "${3:-10}" "${4:-screen}" > "$IN/$id.part"; MACRO_TIMEOUT=$(( ${3:-10} + 30 )) ;;
+  win-list) printf 'win-list:\n' > "$IN/$id.part" ;;
+  win-move) m() { [ "$1" = "-" ] && echo "" || echo "$1"; }; printf 'win-move: %s | %s | %s | %s | %s\n' "$(m "$2")" "$(m "$3")" "$(m "$4")" "$(m "$5")" "$6" > "$IN/$id.part" ;;
+  win-snap) printf 'win-snap: %s | %s | %s\n' "$2" "$3" "$4" > "$IN/$id.part" ;;
+  win-minimize|win-maximize|win-restore|win-top|win-bottom|ax-quit) printf '%s: %s\n' "$1" "$2" > "$IN/$id.part" ;;
+  lock) printf 'lock: %s | %s\n' "${3:-0}" "$2" > "$IN/$id.part" ;;
+  unlock|lock-status) printf '%s:\n' "$1" > "$IN/$id.part" ;;
+  request) printf 'request: %s\n' "$2" > "$IN/$id.part" ;;
   version) exec python3 "$PYZ" --version ;;
-  *) sed -n '2,10p' "$0"; exit 2 ;;
+  *) sed -n '2,20p' "$0"; exit 2 ;;
 esac
 pid=$(cat "$HOME/.mantra_macro/linux.pid" 2>/dev/null)
 if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
@@ -34,7 +52,7 @@ import json, sys
 r = json.load(open(sys.argv[1])); verb = sys.argv[2]
 msg = r.get('message', '')
 if r.get('ok'):
-    print(msg if verb in ('record', 'stop', 'list', 'show') else 'ok'); sys.exit(0)
+    print(msg if verb not in ('run', 'do') else 'ok'); sys.exit(0)
 print('error%s: %s' % (' on line %d' % r['line'] if r.get('line') else '', msg)); sys.exit(1)
 PY
 s=$?; rm -f "$f"; exit $s

@@ -23,7 +23,7 @@ try:
 except (ValueError, ImportError):
     Keybinder = None
 
-from . import store, VERSION                       # noqa: E402
+from . import store, verbs, VERSION                # noqa: E402
 from .backend import Backend, Stopped               # noqa: E402
 from .recorder import Recorder, events_to_script    # noqa: E402
 from .script import Interp, ScriptError, Stop       # noqa: E402
@@ -263,6 +263,8 @@ class App:
                 reply({'ok': True, 'message': 'shown', 'line': 0})
             elif low.startswith('run:'):
                 self.jobs.put(('run', head[4:].strip(), reply))
+            elif verbs.is_verb(head):           # captures, windows, OCR, lock (v3); run off the GTK thread
+                threading.Thread(target=lambda h=head, r=reply: r(verbs.dispatch(h)[1]), daemon=True).start()
             else:
                 self.jobs.put(('script', text, reply))
         return True
