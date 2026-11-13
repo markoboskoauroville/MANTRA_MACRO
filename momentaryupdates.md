@@ -151,3 +151,8 @@ Please in my macro recorder mantra update at the top of the window should be dro
 
 "this kind of works, but you need to center all the text and all the buttons to the center, center-aligned. And even give the Mac back to Claude somewhere random. Everything must be in the same place. Eyes are following. Read my cinematography lessons"
 **Status:** saved first. v25: the bar's text and TAKE OVER one group centred on the screen's centre line (fixed-width text, so the countdown never shifts it); the blob GIVE THE MAC BACK TO CLAUDE / CLAUDE ASKS FOR THE MAC takes exactly the place, size and shape of TAKE OVER (eye trace, MANTRA_MANIFEST modules/alignment.md). Also asked: why CGWindowList did not list the bar and blob.
+
+## 13.11.2026, Marko (word for word): the takeover at the bottom
+
+"I have a better idea for this takeover. Make the line at the bottom and center all the action buttons at the center bottom. Everything is bottom center, please"
+**Status:** saved first. v26: the lock bar at the bottom of each screen (just above the Dock, visibleFrame.minY), text and TAKE OVER one group on the centre line; the blob in exactly the same bottom-centre spot and size.
