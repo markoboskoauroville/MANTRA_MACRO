@@ -229,7 +229,7 @@ final class InputLock {
         let primaryH = NSScreen.screens.first?.frame.height ?? 0
         for s in NSScreen.screens {
             let h = InputLock.BAR_H
-            let f = NSRect(x: s.frame.minX, y: s.visibleFrame.maxY - h, width: s.frame.width, height: h)   // right under the menu bar
+            let f = NSRect(x: s.frame.minX, y: s.visibleFrame.minY, width: s.frame.width, height: h)   // v26: bottom of the screen, just above the Dock
             let p = BarPanel(contentRect: f, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             p.title = "Macro Recorder input lock bar"
             p.level = .statusBar; p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = false
@@ -272,7 +272,7 @@ final class InputLock {
             let s = NSScreen.main ?? NSScreen.screens[0]
             let w = InputLock.BTN_W, h = InputLock.BTN_H
             r = NSRect(x: (s.frame.midX - (min(420, max(120, s.frame.width - w - InputLock.GAP - 40)) + InputLock.GAP + w) / 2 + min(420, max(120, s.frame.width - w - InputLock.GAP - 40)) + InputLock.GAP).rounded(),
-                       y: s.visibleFrame.maxY - InputLock.BAR_H + (InputLock.BAR_H - h) / 2, width: w, height: h)
+                       y: s.visibleFrame.minY + (InputLock.BAR_H - h) / 2, width: w, height: h)
         }
         let p = BarPanel(contentRect: r, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.title = "Macro Recorder input lock blob"
