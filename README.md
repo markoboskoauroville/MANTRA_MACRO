@@ -20,6 +20,22 @@ runs it; I assign any macro to any slot with check marks and reorder them in the
 user also learns AutoHotkey. If statements, loop statements, and all the other features." · "Load
 screenshots of the buttons, so the app can click by optical recognition of the patterns on my screen."
 
+## LOGIN for the phone: every password dialog answered (v23, 13.11.2026)
+
+Marko, from Mantra Remote Viewing: *"When there is a pop-up ... to enter my password to allow keychain or anything while
+I'm developing apps ... it searches, even the dialog does not need to be in focus ... enter my password and always allow.
+The first option is always allow if there is there, if not then just OK."*
+
+- `app/Dialog.swift`, inbox `login-dialog: <password>`, CLI `printf %s "$PW" | macro login-dialog`, STAR_API
+  `POST /login-dialog {"password"}` / `starapi.login_dialog(pw)`.
+- Every window of every process is searched through Accessibility: a secure text field in a dialog, a sheet or a system
+  prompt (SecurityAgent, coreautha, UserNotificationCenter ...), never inside a web page. Brought forward, the password
+  set (AXValue) or typed into the clicked field, then the first of ALWAYS ALLOW, ALLOW, OK, UNLOCK, MODIFY SETTINGS,
+  INSTALL HELPER ... is pressed (else the default button, else Return). All dialogs on the screen in one call (up to 8);
+  one that stays open is reported "STILL OPEN (wrong password?)" and never tried twice. A SecurityAgent window that
+  Accessibility cannot read: brought forward, typed, the button found on its picture (Vision) and clicked.
+- The password never appears in an answer or a log; the inbox file is 0600 and removed when read.
+
 ## Linux (linux/, from 5.11.2026): the same app on the VM
 
 Marko, 5.11.2026: *"translate it to be able to run on this machine ... in the same repository we can have two versions of

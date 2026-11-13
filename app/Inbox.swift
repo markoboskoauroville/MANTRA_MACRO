@@ -4,6 +4,7 @@ import Foundation
 // any script) drops <id>.ahk into ~/.mantra_macro/inbox; the app runs it like a macro and writes <id>.result.json next
 // to it: {"ok": true|false, "message": "...", "line": n}. A file holding only "run: <name>" plays that stored macro.
 // The `macro` command (tools/macro) writes the file and waits for the result.
+// v23 (13.11.2026): "login-dialog: <password>" fills and allows every password dialog (Dialog.swift).
 // v9 (2.11.2026): "ax-read: <app>", "ax-press: <app> | <label>", "ax-quit: <app>" for the common Star API (AX.swift).
 // v8 (1.11.2026): "recalibrate: <name>" runs RECALIBRATE, "view: <name> [| app]" stores the view; the report comes back as the message.
 let INBOX = DIR + "/inbox"
@@ -101,6 +102,18 @@ final class Inbox {
             DispatchQueue.global(qos: .userInitiated).async {
                 let r = PageCapture.fromInbox(arg)
                 DispatchQueue.main.async { self.finish(id, r.ok, r.message, nil) }
+            }
+            return
+        }
+        // v23: "login-dialog: <password>" answers every password dialog on the Mac (Dialog.swift); the password is
+        // never in the answer, and the file is already gone (removed above, before anything runs)
+        if trimmed.hasPrefix("login-dialog:") {
+            var pw = String(text.drop(while: { $0 != ":" }).dropFirst())
+            if pw.hasPrefix(" ") { pw.removeFirst() }                    // one space after the colon, a password may hold more
+            while pw.hasSuffix("\n") || pw.hasSuffix("\r") { pw.removeLast() }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let r = PwDialog.run(pw)
+                DispatchQueue.main.async { self.finish(id, r.0, r.1, nil) }
             }
             return
         }

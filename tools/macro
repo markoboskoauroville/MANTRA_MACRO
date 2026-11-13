@@ -19,6 +19,7 @@
 #   macro win-minimize|win-maximize|win-restore|win-top|win-bottom "<title>"
 #   macro layout new|save|run|delete "<name>"  /  macro layout list   every visible window's place, brought back (opens missing apps) (v21)
 #   macro trigger "<name>" [key] [on|off]   that macro's own key (f1, ctrl+alt+k) on or off; no key/state = report (v14)
+#   macro login-dialog              (password on stdin) every password dialog on the Mac: filled, ALWAYS ALLOW / OK pressed (v23)
 #   macro record "<name>"  /  macro stop     record a new macro under that name, and stop and save it (v8)
 #   macro has "<what you want to do>"   is it already stored? (the catalogue ~/Developer/MACRO_SKILLS, 12.11.2026); also: macro skills list|show|run|add|sync
 # Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
@@ -29,6 +30,7 @@ case "$1" in
   run) printf 'run: %s\n' "$2" > "$IN/$id.part" ;;
   do)  if [ "$2" = "-" ]; then cat > "$IN/$id.part"; else printf '%s\n' "$2" > "$IN/$id.part"; fi ;;
   record) printf 'record: %s\n' "$2" > "$IN/$id.part" ;;
+  login-dialog) (umask 077; { printf 'login-dialog: '; head -c 4096; } > "$IN/$id.part") ;;
   stop) printf 'stop:\n' > "$IN/$id.part" ;;
   recalibrate) printf 'recalibrate: %s\n' "$2" > "$IN/$id.part" ;;
   capture-page) printf 'capture-page: %s | %s | %s\n' "$2" "${3:-down}" "${4:-$HOME/Desktop/page.png}" > "$IN/$id.part" ;;
@@ -46,7 +48,7 @@ case "$1" in
   ax-focus-end) printf 'ax-focus-end: %s | %s | %s\n' "$2" "${3:-textarea}" "${4:-1}" > "$IN/$id.part" ;;
   ax-press) printf 'ax-press: %s | %s\n' "$2" "$3" > "$IN/$id.part" ;;
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
-  *) sed -n "2,26p" "$0"; exit 2 ;;
+  *) sed -n "2,27p" "$0"; exit 2 ;;
 esac
 # The guard between Marko and Claude (Marko, 12.11.2026: "the same guard which Claude uses must be used by the macro
 # recorder: guard on and guard off"): Keyboard and Mouse Router (Mantra), 127.0.0.1:8870 (repo MANTRA_KEYBOARD_MOUSE_ROUTER).
