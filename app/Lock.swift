@@ -28,17 +28,30 @@ private final class ClickView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseUp(with event: NSEvent) { if bounds.contains(convert(event.locationInWindow, from: nil)) { onClick?() } }
 }
-/// The blob: a click gives back; dragging moves it up or down (Lock.kt showBlob).
+/// The blob: a click gives back. No dragging: it stays where TAKE OVER was.
 private final class BlobView: NSView {
     var onClick: (() -> Void)?
-    private var downY: CGFloat = 0, startY: CGFloat = 0, moved = false
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func mouseDown(with e: NSEvent) { downY = NSEvent.mouseLocation.y; startY = window?.frame.origin.y ?? 0; moved = false }
-    override func mouseDragged(with e: NSEvent) {
-        let dy = NSEvent.mouseLocation.y - downY
-        if abs(dy) > 6 { moved = true; window?.setFrameOrigin(NSPoint(x: window!.frame.origin.x, y: startY + dy)) }
+    override func mouseUp(with e: NSEvent) { if bounds.contains(convert(e.locationInWindow, from: nil)) { onClick?() } }
+}
+/// One line of text centred on its cap height (not its line box), left aligned or centred in x, tail-truncated.
+private final class CapText: NSView {
+    var text = "" { didSet { needsDisplay = true } }
+    let font: NSFont, color: NSColor, centred: Bool
+    init(frame: NSRect, font: NSFont, color: NSColor, centred: Bool) {
+        self.font = font; self.color = color; self.centred = centred
+        super.init(frame: frame)
     }
-    override func mouseUp(with e: NSEvent) { if !moved { onClick?() } }
+    required init?(coder: NSCoder) { fatalError() }
+    override func hitTest(_ p: NSPoint) -> NSView? { nil }
+    override func draw(_ r: NSRect) {
+        let ps = NSMutableParagraphStyle(); ps.lineBreakMode = .byTruncatingTail; ps.alignment = centred ? .center : .left
+        let lineH = ceil(font.ascender - font.descender + font.leading)
+        let baseline = (bounds.height - font.capHeight) / 2
+        let y = baseline + font.descender                      // descender is negative: the line box starts below the baseline
+        (text as NSString).draw(in: NSRect(x: 0, y: y, width: bounds.width, height: lineH),
+                                withAttributes: [.font: font, .foregroundColor: color, .paragraphStyle: ps])
+    }
 }
 
 final class InputLock {
@@ -56,7 +69,7 @@ final class InputLock {
     private var runDepth = 0                         // scripts running now
     private var tap: CFMachPort?
     private var tapSource: CFRunLoopSource?
-    private var bars: [(panel: NSPanel, text: NSTextField)] = []
+    private var bars: [(panel: NSPanel, text: CapText)] = []
     private var barRects: [CGRect] = []              // CG coordinates (top left origin), clicks inside pass to the bar
     private var blob: NSPanel?
     private var ticker: Timer?
@@ -129,6 +142,8 @@ final class InputLock {
     func takeOver() {
         guard state == .on else { return }
         overrides += 1
+        if buttonSpot == nil || !fromButton { buttonSpot = mainSpot }
+        fromButton = false
         let wasText = lastText
         closeBars(); removeTap(); ticker?.invalidate(); ticker = nil
         manualHold = false
@@ -157,7 +172,7 @@ final class InputLock {
         if manual { manualHold = true }
         endAt = seconds > 0 ? Date().addingTimeInterval(Double(seconds)) : nil
         deadline = Date().addingTimeInterval(Double(hard))
-        if state == .on { bars.forEach { $0.text.stringValue = barText() }; return }
+        if state == .on { bars.forEach { $0.text.text = barText() }; return }
         guard AXIsProcessTrusted() else {
             problem = "Accessibility is missing for Macro Recorder (Mantra): the input lock is off"
             state = .off; manualHold = false
@@ -192,7 +207,7 @@ final class InputLock {
     }
 
     private func tick() {
-        bars.forEach { $0.text.stringValue = barText() }
+        bars.forEach { $0.text.text = barText() }
         // the watchdog: a hard maximum, and nothing running and nothing held means nothing to lock
         if Date() > deadline { off(); Engine.shared.say("input lock lifted: its time was up", GREYC, 3); return }
         if let t = tap, !CGEvent.tapIsEnabled(tap: t) { CGEvent.tapEnable(tap: t, enable: true) }
@@ -203,55 +218,73 @@ final class InputLock {
         } else { escSince = nil }
     }
 
+    // v25 (13.11.2026, Marko: "center all the text and all the buttons ... Everything must be in the same place. Eyes are
+    // following."): the text and TAKE OVER are ONE group centred on the screen's centre line, the text a fixed width so the
+    // countdown never moves the group, both centred on the cap height. The blob takes the button's place exactly.
+    static let BTN_W: CGFloat = 236, BTN_H: CGFloat = 22, BAR_H: CGFloat = 30, GAP: CGFloat = 14
+    private var buttonSpot: (screen: NSScreen, rect: NSRect)?     // where TAKE OVER is, in screen coordinates (Cocoa)
+
     private func showBars() {
         closeBars()
         let primaryH = NSScreen.screens.first?.frame.height ?? 0
         for s in NSScreen.screens {
-            let h: CGFloat = 30
+            let h = InputLock.BAR_H
             let f = NSRect(x: s.frame.minX, y: s.visibleFrame.maxY - h, width: s.frame.width, height: h)   // right under the menu bar
             let p = BarPanel(contentRect: f, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            p.title = "Macro Recorder input lock bar"
             p.level = .statusBar; p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = false
             p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
             p.hidesOnDeactivate = false; p.ignoresMouseEvents = false
+            p.sharingType = .readOnly            // visible to screen capture and CGWindowList (layer 25, owner "MacroRecorder")
             let v = NSView(frame: NSRect(origin: .zero, size: f.size)); v.wantsLayer = true
             v.layer?.backgroundColor = InputLock.BARBG.cgColor
-            let t = NSTextField(labelWithString: barText())
-            t.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold); t.textColor = InputLock.ORANGE
-            t.lineBreakMode = .byTruncatingTail; t.maximumNumberOfLines = 1
-            let bw: CGFloat = 108
-            t.frame = NSRect(x: 10, y: (h - 17) / 2, width: f.width - bw - 40, height: 17)
-            let b = ClickView(frame: NSRect(x: f.width - bw - 10, y: 4, width: bw, height: h - 8)); b.wantsLayer = true
+            let bw = InputLock.BTN_W
+            let tw = min(420, max(120, f.width - bw - InputLock.GAP - 40))
+            let x0 = ((f.width - (tw + InputLock.GAP + bw)) / 2).rounded()
+            let t = CapText(frame: NSRect(x: x0, y: 0, width: tw, height: h), font: .monospacedDigitSystemFont(ofSize: 13, weight: .bold), color: InputLock.ORANGE, centred: false)
+            t.text = barText()
+            let b = ClickView(frame: NSRect(x: x0 + tw + InputLock.GAP, y: (h - InputLock.BTN_H) / 2, width: bw, height: InputLock.BTN_H)); b.wantsLayer = true
             b.layer?.backgroundColor = InputLock.ORANGE.cgColor; b.layer?.cornerRadius = 8
-            let bt = NSTextField(labelWithString: "TAKE OVER"); bt.font = .boldSystemFont(ofSize: 13); bt.textColor = .black
-            bt.alignment = .center; bt.frame = NSRect(x: 0, y: (b.frame.height - 17) / 2, width: bw, height: 17)
-            b.addSubview(bt); b.onClick = { [weak self] in self?.takeOver() }
+            let bt = CapText(frame: NSRect(x: 0, y: 0, width: bw, height: InputLock.BTN_H), font: .boldSystemFont(ofSize: 13), color: .black, centred: true)
+            bt.text = "TAKE OVER"
+            b.addSubview(bt)
+            let rect = NSRect(x: f.minX + b.frame.minX, y: f.minY + b.frame.minY, width: bw, height: InputLock.BTN_H)
+            b.onClick = { [weak self] in self?.buttonSpot = (s, rect); self?.fromButton = true; self?.takeOver() }
+            if s == (NSScreen.main ?? NSScreen.screens[0]) { mainSpot = (s, rect) }
             b.setAccessibilityLabel("TAKE OVER"); b.setAccessibilityRole(.button); b.setAccessibilityIdentifier("takeover")
             v.addSubview(t); v.addSubview(b)
             p.contentView = v
             p.orderFrontRegardless()
-            bars.append((p, t))
+            bars.append((panel: p, text: t))
             barRects.append(CGRect(x: f.minX, y: primaryH - f.maxY, width: f.width, height: f.height))
         }
     }
+    private var mainSpot: (screen: NSScreen, rect: NSRect)?
+    private var fromButton = false
     private func closeBars() { bars.forEach { $0.panel.orderOut(nil); $0.panel.close() }; bars = []; barRects = [] }
 
+    /// The blob is TAKE OVER's twin: same screen, same centre, same size, same shape; only its words differ.
     private func showBlob(_ words: String, tap: @escaping () -> Void) {
         closeBlob()
-        let s = NSScreen.main ?? NSScreen.screens[0]
-        let t = NSTextField(labelWithString: words)
-        t.font = .boldSystemFont(ofSize: 13); t.textColor = .black; t.alignment = .center
-        t.maximumNumberOfLines = 2; t.sizeToFit()
-        let w = t.frame.width + 28, h = t.frame.height + 20
-        let p = BarPanel(contentRect: NSRect(x: s.frame.maxX - w - 8, y: s.frame.maxY - s.frame.height * 0.35 - h, width: w, height: h),
-                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        p.level = .statusBar; p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = true
+        let spot = buttonSpot ?? mainSpot
+        let r: NSRect
+        if let sp = spot { r = sp.rect } else {
+            let s = NSScreen.main ?? NSScreen.screens[0]
+            let w = InputLock.BTN_W, h = InputLock.BTN_H
+            r = NSRect(x: (s.frame.midX - (min(420, max(120, s.frame.width - w - InputLock.GAP - 40)) + InputLock.GAP + w) / 2 + min(420, max(120, s.frame.width - w - InputLock.GAP - 40)) + InputLock.GAP).rounded(),
+                       y: s.visibleFrame.maxY - InputLock.BAR_H + (InputLock.BAR_H - h) / 2, width: w, height: h)
+        }
+        let p = BarPanel(contentRect: r, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.title = "Macro Recorder input lock blob"
+        p.level = .statusBar; p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = false
         p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
-        let v = BlobView(frame: NSRect(x: 0, y: 0, width: w, height: h)); v.wantsLayer = true
-        v.layer?.backgroundColor = InputLock.ORANGE.cgColor; v.layer?.cornerRadius = 22
-        v.layer?.borderColor = NSColor.black.cgColor; v.layer?.borderWidth = 2
-        t.frame.origin = NSPoint(x: 14, y: 10); v.addSubview(t)
+        p.sharingType = .readOnly
+        let v = BlobView(frame: NSRect(origin: .zero, size: r.size)); v.wantsLayer = true
+        v.layer?.backgroundColor = InputLock.ORANGE.cgColor; v.layer?.cornerRadius = 8
+        let t = CapText(frame: NSRect(origin: .zero, size: r.size), font: .boldSystemFont(ofSize: 13), color: .black, centred: true)
+        t.text = words.replacingOccurrences(of: "\n", with: " "); v.addSubview(t)
         v.onClick = { [weak self] in self?.closeBlob(); tap() }
-        v.setAccessibilityLabel(words.replacingOccurrences(of: "\n", with: " ")); v.setAccessibilityRole(.button)
+        v.setAccessibilityLabel(t.text); v.setAccessibilityRole(.button)
         p.contentView = v
         p.orderFrontRegardless()
         blob = p
