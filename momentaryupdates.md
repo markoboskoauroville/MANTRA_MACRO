@@ -137,3 +137,11 @@ Please in my macro recorder mantra update at the top of the window should be dro
 
 ## 9.11.2026, Marko: "Macro Recorder is getting better and better. Please store this layout for today ... a new dropdown menu: I just select and then I can recall it ... a button New, it stores the current situation"
 **Status:** v22 built by GitHub, installed, relaunched (pid 46442 -> 65677): LAYOUTS drop-down (newest first, pick = run, Delete submenu), NEW = d.m.yyyy (" 2", " 3"); tested through AX (NEW twice -> "9.11.2026 2/3", pick ran 9 of 9 windows, Delete removed both); before-test-9nov hidden as _before-test-9nov.json.
+
+## 13.11.2026, the input lock while a macro runs (copied from the phone)
+
+> I was working with Mouse at the same time you were working with Mouse. We have here the system which blocks my actions while you are working. While it didn't trigger, now explain to me
+
+> then simply copy the system from the phone to this Mac. For blocking the things you build, it is part of the macro. It runs every time the macro is running, with you or without you. It blocks inputs, which I can override by pressing the button, same as on the phone. We developed the logic on the phone. The user interface on the phone: you just need to convert from Kotlin to Swift. That's all
+
+**Status:** found 13.11.2026: `BlockInput` was a no-op (app/Script.swift:1741) and the only event tap is listen-only (app/Engine.swift:131), so nothing blocked his mouse; MANTRA_MANIFEST phone-lock.md wrongly said the Mac already did. Building: a port of VOICE_ENGINE_ANDROID Lock.kt to Swift, active whenever a macro runs.
