@@ -24,6 +24,7 @@
 #   macro has "<what you want to do>"   is it already stored? (the catalogue ~/Developer/MACRO_SKILLS, 12.11.2026); also: macro skills list|show|run|add|sync
 #   macro lock "<text>" [seconds]  /  macro unlock  /  macro lock-status  /  macro request "<what for>"   the input lock held across
 #     several calls (v24, the phone's API): a bar CLAUDE · time · text, his mouse and keys swallowed, TAKE OVER gives it back.
+#     v27: lock/unlock = `guard begin` / `guard end` (one holder at a time, idle wait, his app/field/caret back, his keys replayed).
 #     Every `macro do` / `macro run` locks by itself for its length; MACRO_SECONDS=N sets the countdown of a `macro do`.
 #     After TAKE OVER every run answers "overridden by Marko" until he clicks the orange blob GIVE THE MAC BACK TO CLAUDE.
 # Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
@@ -33,8 +34,16 @@ id="$(date +%s)-$$"
 case "$1" in
   run) printf 'run: %s\n' "$2" > "$IN/$id.part" ;;
   do)  { [ -n "$MACRO_SECONDS" ] && printf '; lock-seconds: %s\n' "$MACRO_SECONDS"; if [ "$2" = "-" ]; then cat; else printf '%s\n' "$2"; fi; } > "$IN/$id.part" ;;
-  lock) printf 'lock: %s | %s\n' "${3:-0}" "$2" > "$IN/$id.part" ;;
-  unlock|lock-status) printf '%s:\n' "$1" > "$IN/$id.part" ;;
+  lock) # v27: through the guard (owner = this Claude session, queue, idle wait, his keys given back at unlock)
+        if command -v guard >/dev/null 2>&1 && [ "${GUARD:-1}" != 0 ]; then
+          out=$(guard begin --seconds "${3:-600}" "${2:-working}" 2>&1); case "$out" in *"guard: held by"*) echo "lock on"; exit 0;; *) echo "error: $out"; exit 1;; esac
+        fi
+        printf 'lock: %s | %s\n' "${3:-0}" "$2" > "$IN/$id.part" ;;
+  unlock) if command -v guard >/dev/null 2>&1 && [ "${GUARD:-1}" != 0 ]; then
+            out=$(guard end 2>&1); case "$out" in *"given back"*) echo "lock off"; exit 0;; esac
+          fi
+          printf 'unlock:\n' > "$IN/$id.part" ;;
+  lock-status) printf 'lock-status:\n' > "$IN/$id.part" ;;
   request) printf 'request: %s\n' "$2" > "$IN/$id.part" ;;
   record) printf 'record: %s\n' "$2" > "$IN/$id.part" ;;
   login-dialog) (umask 077; { printf 'login-dialog: '; head -c 4096; } > "$IN/$id.part") ;;
@@ -57,20 +66,20 @@ case "$1" in
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
   *) sed -n "2,31p" "$0"; exit 2 ;;
 esac
-# The guard between Marko and Claude (Marko, 12.11.2026: "the same guard which Claude uses must be used by the macro
-# recorder: guard on and guard off"): Keyboard and Mouse Router (Mantra), 127.0.0.1:8870 (repo MANTRA_KEYBOARD_MOUSE_ROUTER).
-# Actions that move the mouse or press keys BORROW Marko's mouse and keyboard while they run (badge in the middle of the
-# screen; his hardware input is held and his keystrokes replayed afterwards; Escape held 2 s gives them back) and RETURN
-# them after, also on error. Router not running / already borrowed by another session: the action runs as before.
-# MACRO_GUARD=0 skips it.
+# THE GUARD (v27, 14.11.2026; replaces the Router on 8870, which was never installed: every call "ran as before",
+# unguarded). Marko, 14.11.2026: "this guard should be available for any action happening by Claude or any of my star
+# apps". Actions that move the mouse or press keys hold the ONE guard (`guard`, tools/guard.py -> Macro Recorder's lock,
+# 127.0.0.1:8829): wait until Marko is still 1.5 s, one holder at a time (other sessions wait their turn), his keys held
+# and replayed where he was afterwards, a 2.5 s linger so the same session's next `macro do` continues without a hand-back
+# in between. MACRO_GUARD=0 / GUARD=0 skips it. Overridden by Marko: the engine refuses the run itself.
 case "$1" in
   run|do|click-text)
-    if [ "${MACRO_GUARD:-1}" != 0 ]; then
-      secs=$(( ${MACRO_TIMEOUT:-120} + 5 )); [ $secs -gt 120 ] && secs=120
+    if [ "${MACRO_GUARD:-1}" != 0 ] && [ "${GUARD:-1}" != 0 ] && command -v guard >/dev/null 2>&1; then
+      secs=$(( ${MACRO_TIMEOUT:-120} + 5 ))
       why=$(printf 'Macro Recorder: %s %s' "$1" "$(printf '%s' "$2" | head -c 60)" | tr -d '"\\' | tr '\n' ' ')
-      tok=$(curl -s -m 2 -X POST http://127.0.0.1:8870/borrow -H 'Content-Type: application/json' \
-            -d "{\"reason\":\"$why\",\"seconds\":$secs}" 2>/dev/null | sed -n 's/.*"ok" *: *true.*"token" *: *"\([^"]*\)".*/\1/p; s/.*"token" *: *"\([^"]*\)".*"ok" *: *true.*/\1/p' | head -1)
-      [ -n "$tok" ] && trap 'curl -s -m 2 -X POST http://127.0.0.1:8870/return -H "Content-Type: application/json" -d "{\"token\":\"'"$tok"'\"}" >/dev/null 2>&1' EXIT
+      if guard begin --seconds "$secs" "$why" >/dev/null 2>&1; then
+        trap 'guard end --linger "${MACRO_LINGER:-2500}" >/dev/null 2>&1' EXIT
+      fi
     fi ;;
 esac
 mv "$IN/$id.part" "$IN/$id.ahk"
