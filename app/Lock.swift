@@ -76,6 +76,12 @@ final class InputLock {
     private var escSince: Date?
     private var suspendedUntil = Date.distantPast    // /through
     private var macroPos: CGPoint?                   // where the macro's pointer is, while the lock is on
+    // v27 (14.11.2026) the guard API: one holder at a time, nested calls of the same holder, a short linger between steps
+    private(set) var owner = ""                      // who holds a manual lock ("" = an old `macro lock` without owner)
+    private var ownerDepth = 0
+    private var ownerPid: pid_t = 0                  // the holder's process: gone -> the lock lifts at the next tick
+    private var restoreAfter = true                  // put Marko back where he was when it lifts
+    private var lingerTimer: Timer?
 
     // MARK: the engine's side: a run starts and ends
 
@@ -90,6 +96,10 @@ final class InputLock {
         if state == .on && manualHold { return nil }
         let t = seconds ?? 0
         who = by == .claude ? "CLAUDE" : "MACRO"
+        if state == .off {
+            let idle = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!)
+            restoreAfter = idle < 60
+        }
         engage(name, seconds: t, hard: hard, manual: false)
         return nil
     }
@@ -108,11 +118,61 @@ final class InputLock {
         engage(text, seconds: seconds, hard: seconds > 0 ? min(600, seconds + 30) : 600, manual: true)
     }
     func off() {
+        let wasOn = state == .on
         manualHold = false
         closeBars(); closeBlob(); removeTap()
         ticker?.invalidate(); ticker = nil
+        lingerTimer?.invalidate(); lingerTimer = nil
         state = .off
         CGAssociateMouseAndMouseCursorPosition(1)
+        let r = restoreAfter
+        owner = ""; ownerDepth = 0; ownerPid = 0; restoreAfter = true
+        if wasOn { GuardBook.shared.finish("done", restore: r) }
+    }
+
+    // MARK: v27, the guard API (POST /lock with owner, POST /unlock with owner): Marko 14.11.2026, "this guard should be
+    // available for any action happening by Claude or any of my star apps"
+
+    /// Take the lock for `owner`. Busy (another holder, or a give-back still replaying) means: the caller waits and asks again.
+    func guardLock(_ text: String, seconds: Int, owner o: String, pid: pid_t, restore: Bool) -> [String: Any] {
+        if state == .overridden { return ["ok": false, "overridden": true, "error": "overridden by Marko: the Mac is his until he clicks GIVE THE MAC BACK TO CLAUDE"] }
+        if state == .requested { return ["ok": false, "busy": true, "error": "waiting for Marko to click CLAUDE ASKS FOR THE MAC"] }
+        if GuardBook.shared.finishing { return ["ok": false, "busy": true, "held_by": "(giving back)", "error": "the last lock is still giving Marko his keys back"] }
+        if state == .on {
+            if (manualHold && owner != o) || (!manualHold && runDepth > 0) {
+                return ["ok": false, "busy": true, "held_by": manualHold ? owner : "macro run", "text": lastText, "error": "held by " + (manualHold ? (owner.isEmpty ? "macro lock" : owner) : "a macro run")]
+            }
+            lingerTimer?.invalidate(); lingerTimer = nil
+            ownerDepth += 1
+            if !restore { restoreAfter = false }
+            on(text, seconds: seconds)
+            return ["ok": true, "lock": state.rawValue, "depth": ownerDepth, "nested": true]
+        }
+        owner = o; ownerDepth = 1; ownerPid = pid; restoreAfter = restore
+        on(text, seconds: seconds)
+        if state != .on { let p = problem ?? "the lock did not come on"; owner = ""; ownerDepth = 0; ownerPid = 0; return ["ok": false, "error": p] }
+        return ["ok": true, "lock": state.rawValue, "depth": 1]
+    }
+
+    /// Give it back. A linger keeps it held a moment so the same holder's next step does not hand Marko a half-done screen.
+    func guardUnlock(owner o: String, lingerMs: Int) -> [String: Any] {
+        guard state == .on else { return ["ok": true, "lock": state.rawValue] }
+        if o.isEmpty && !owner.isEmpty { return ["ok": false, "error": "held by " + owner + ": an unlock without owner does not lift it"] }
+        if !o.isEmpty && o != owner { return ["ok": false, "error": "held by " + (owner.isEmpty ? "macro lock" : owner) + ", not by " + o] }
+        ownerDepth = max(0, ownerDepth - 1)
+        if ownerDepth > 0 { return ["ok": true, "lock": state.rawValue, "depth": ownerDepth] }
+        if runDepth > 0 { manualHold = false; return ["ok": true, "lock": state.rawValue, "after_run": true] }   // the run lifts it
+        if lingerMs > 0 {
+            lingerTimer?.invalidate()
+            lingerTimer = Timer.scheduledTimer(withTimeInterval: Double(min(lingerMs, 10000)) / 1000, repeats: false) { [weak self] _ in
+                guard let s = self, s.state == .on, s.ownerDepth == 0, s.runDepth == 0 else { return }
+                s.off()
+            }
+            RunLoop.main.add(lingerTimer!, forMode: .common)
+            return ["ok": true, "lock": state.rawValue, "linger_ms": lingerMs]
+        }
+        off()
+        return ["ok": true, "lock": state.rawValue]
     }
     /// BlockInput Off inside a script: the lock is lifted for the rest of the run.
     func release() { if state == .on { off() } }
@@ -123,8 +183,8 @@ final class InputLock {
         lastText = text
         state = .requested
         showBlob("CLAUDE ASKS\nFOR THE MAC") { [weak self] in
-            guard let s = self else { return }
-            s.engage(s.lastText, seconds: s.lastSeconds, hard: 300, manual: true)
+            // v27: his click frees the Mac; the waiting guard caller takes the lock itself (its own owner, its own give-back)
+            self?.state = .off
         }
     }
 
@@ -146,18 +206,24 @@ final class InputLock {
         fromButton = false
         let wasText = lastText
         closeBars(); removeTap(); ticker?.invalidate(); ticker = nil
+        lingerTimer?.invalidate(); lingerTimer = nil
         manualHold = false
         state = .overridden
+        owner = ""; ownerDepth = 0; ownerPid = 0; restoreAfter = true
+        GuardBook.shared.finish("TAKE OVER", restore: true)          // v27: his place and his keys back at once
         CGAssociateMouseAndMouseCursorPosition(1)
         Engine.shared.stopPlayingByOverride()
+        _ = wasText
         showBlob("GIVE THE MAC\nBACK TO CLAUDE") { [weak self] in
-            guard let s = self else { return }
-            s.engage(wasText.isEmpty ? "Back to work. It is yours again when this disappears." : wasText, seconds: s.lastSeconds, hard: 300, manual: true)
+            // v27: back to off; the next guard caller in the queue takes the lock with its own owner
+            self?.state = .off
         }
     }
 
     func status() -> [String: Any] {
-        var o: [String: Any] = ["lock": state.rawValue, "text": lastText, "runs": runDepth]
+        var o: [String: Any] = ["lock": state.rawValue, "text": lastText, "runs": runDepth, "owner": owner, "depth": ownerDepth,
+                                "giving_back": GuardBook.shared.finishing]
+        if state == .on { o["buffered_keys"] = GuardBook.shared.keyCount; o["noted_clicks"] = GuardBook.shared.clickCount; o["front_app"] = GuardBook.shared.frontName }
         if let e = endAt { o["left"] = max(0, Int(e.timeIntervalSinceNow)) }
         if state == .on { o["elapsed"] = Int(Date().timeIntervalSince(startAt)) }
         if let p = problem { o["problem"] = p }
@@ -188,6 +254,7 @@ final class InputLock {
             Engine.shared.say(problem!, GREYC, 5)
             return
         }
+        GuardBook.shared.begin(text)                     // v27: where Marko is now, to give it back
         showBars()
         state = .on
         ticker?.invalidate()
@@ -211,6 +278,9 @@ final class InputLock {
         // the watchdog: a hard maximum, and nothing running and nothing held means nothing to lock
         if Date() > deadline { off(); Engine.shared.say("input lock lifted: its time was up", GREYC, 3); return }
         if let t = tap, !CGEvent.tapIsEnabled(tap: t) { CGEvent.tapEnable(tap: t, enable: true) }
+        if ownerPid > 0 && runDepth == 0 && kill(ownerPid, 0) != 0 && errno == ESRCH {
+            NSLog("[guard] holder %d is gone: lifting", ownerPid); off(); return
+        }
         // holding Escape for one second takes over too
         if CGEventSource.keyState(.hidSystemState, key: 0x35) {
             if escSince == nil { escSince = Date() }
@@ -331,11 +401,13 @@ final class InputLock {
         case .keyDown, .keyUp, .flagsChanged:
             // the stop key of the macro recorder (⌃⌥⌘. by default) always works
             if let b = Engine.shared.settings.keys["stop"], KeyMap.codes[b.key] == Int(e.getIntegerValueField(.keyboardEventKeycode)) { return pass }
+            if type == .keyDown { GuardBook.shared.noteKey(e) }         // v27: kept, replayed where he was when it lifts
             return nil
         default:
             // clicks and moves inside the bar pass, so TAKE OVER can be pressed; everything else is swallowed
             let p = e.location
             if barRects.contains(where: { $0.contains(p) }) { return pass }
+            if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown { GuardBook.shared.noteClick(p, type) }
             return nil
         }
     }
@@ -397,9 +469,19 @@ final class LockServer {
             let L = InputLock.shared
             switch (method, path) {
             case ("GET", "/status"), ("GET", "/"): out = L.status(); out["app"] = "macrorecorder"; out["version"] = VERSION
-            case ("POST", "/lock"): L.on(j["text"] as? String ?? "Working on the Mac. It will be yours again when this disappears.", seconds: j["seconds"] as? Int ?? 0); out = ["ok": true, "lock": L.state.rawValue]
+            case ("POST", "/lock") where j["owner"] != nil:
+                out = L.guardLock(j["text"] as? String ?? "working", seconds: j["seconds"] as? Int ?? 120, owner: j["owner"] as? String ?? "",
+                                  pid: pid_t(j["pid"] as? Int ?? 0), restore: j["restore"] as? Bool ?? true)
+            case ("POST", "/unlock") where j["owner"] != nil:
+                out = L.guardUnlock(owner: j["owner"] as? String ?? "", lingerMs: j["linger_ms"] as? Int ?? 0)
+            case ("GET", "/last"): out = GuardBook.shared.last; out["ok"] = true
+            case ("POST", "/lock"):
+                if L.state == .on && !L.owner.isEmpty { out = ["ok": false, "busy": true, "error": "held by " + L.owner]; break }
+                L.on(j["text"] as? String ?? "Working on the Mac. It will be yours again when this disappears.", seconds: j["seconds"] as? Int ?? 0); out = ["ok": true, "lock": L.state.rawValue]
             case ("POST", "/request"): L.request(j["text"] as? String ?? "Claude needs the Mac for a moment."); out = ["ok": true, "lock": L.state.rawValue]
-            case ("POST", "/unlock"): L.off(); out = ["ok": true, "lock": L.state.rawValue]
+            case ("POST", "/unlock"):
+                if L.state == .on && !L.owner.isEmpty { out = ["ok": false, "error": "held by " + L.owner + ": unlock with its owner"]; break }
+                L.off(); out = ["ok": true, "lock": L.state.rawValue]
             case ("POST", "/through"): L.through(j["ms"] as? Int ?? 800); out = ["ok": true, "lock": L.state.rawValue]
             default: code = 404; out = ["error": "no such route"]
             }

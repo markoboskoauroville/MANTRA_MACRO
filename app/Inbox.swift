@@ -149,10 +149,13 @@ final class Inbox {
                 let secs = parts.count > 1 ? Int(parts[0]) ?? 0 : 0
                 let text = parts.count > 1 ? parts[1...].joined(separator: " | ") : arg
                 if L.state == .overridden { return finish(id, false, "overridden by Marko: the Mac is his until he gives it back (blob GIVE THE MAC BACK TO CLAUDE)", nil) }
+                if L.state == .on && !L.owner.isEmpty { return finish(id, false, "busy: the guard is held by " + L.owner + " (use `guard begin`, it waits its turn)", nil) }
                 L.on(text.isEmpty ? "Working on the Mac. It will be yours again when this disappears." : text, seconds: secs)
                 msg = "lock " + L.state.rawValue
                 if L.state != .on, let p = L.problem { return finish(id, false, p, nil) }
-            } else if trimmed == "unlock:" { L.off(); msg = "lock off"
+            } else if trimmed == "unlock:" {
+                if L.state == .on && !L.owner.isEmpty { return finish(id, false, "held by " + L.owner + ": `guard end` lifts it", nil) }
+                L.off(); msg = "lock off"
             } else if trimmed.hasPrefix("request:") { L.request(arg.isEmpty ? "Claude needs the Mac for a moment." : arg); msg = "lock " + L.state.rawValue
             } else if trimmed.hasPrefix("through:") { L.through(Int(arg) ?? 800); msg = "lock " + L.state.rawValue
             } else {
