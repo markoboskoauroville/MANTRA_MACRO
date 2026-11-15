@@ -82,6 +82,15 @@ final class InputLock {
     private var ownerPid: pid_t = 0                  // the holder's process: gone -> the lock lifts at the next tick
     private var restoreAfter = true                  // put Marko back where he was when it lifts
     private var lingerTimer: Timer?
+    // v28 (15.11.2026, Talk Mode's SPACE MODE): a holder may own the keyboard itself (keys pass, nothing recorded), show its
+    // own full sentence on the bar, end without the GIVE THE MAC BACK blob, hold Escape longer, and keep the lock alive only
+    // while it beats (POST /beat): no beat for `beat` seconds = the holder hangs, the lock lifts (the watchdog).
+    private var passKeys = false, plainBar = false, noBlob = false
+    private var escHold: TimeInterval = 1
+    private var beatEvery: TimeInterval = 0
+    private var lastBeat = Date()
+    private(set) var ended = ""                      // how the last lock ended: unlock, takeover, escape, heartbeat, holder-gone, time
+    struct Options { var passKeys = false; var plainBar = false; var noBlob = false; var escHold: TimeInterval = 1; var beat: TimeInterval = 0 }
 
     // MARK: the engine's side: a run starts and ends
 
@@ -127,6 +136,8 @@ final class InputLock {
         CGAssociateMouseAndMouseCursorPosition(1)
         let r = restoreAfter
         owner = ""; ownerDepth = 0; ownerPid = 0; restoreAfter = true
+        if wasOn && ended.isEmpty { ended = "unlock" }
+        resetOptions()
         if wasOn { GuardBook.shared.finish("done", restore: r) }
     }
 
@@ -134,7 +145,7 @@ final class InputLock {
     // available for any action happening by Claude or any of my star apps"
 
     /// Take the lock for `owner`. Busy (another holder, or a give-back still replaying) means: the caller waits and asks again.
-    func guardLock(_ text: String, seconds: Int, owner o: String, pid: pid_t, restore: Bool) -> [String: Any] {
+    func guardLock(_ text: String, seconds: Int, owner o: String, pid: pid_t, restore: Bool, options: Options = Options()) -> [String: Any] {
         if state == .overridden { return ["ok": false, "overridden": true, "error": "overridden by Marko: the Mac is his until he clicks GIVE THE MAC BACK TO CLAUDE"] }
         if state == .requested { return ["ok": false, "busy": true, "error": "waiting for Marko to click CLAUDE ASKS FOR THE MAC"] }
         if GuardBook.shared.finishing { return ["ok": false, "busy": true, "held_by": "(giving back)", "error": "the last lock is still giving Marko his keys back"] }
@@ -149,7 +160,11 @@ final class InputLock {
             return ["ok": true, "lock": state.rawValue, "depth": ownerDepth, "nested": true]
         }
         owner = o; ownerDepth = 1; ownerPid = pid; restoreAfter = restore
-        on(text, seconds: seconds)
+        passKeys = options.passKeys; plainBar = options.plainBar; noBlob = options.noBlob
+        escHold = max(1, min(5, options.escHold)); beatEvery = max(0, min(60, options.beat)); lastBeat = Date(); ended = ""
+        if beatEvery > 0 {           // beating: the beat is the watchdog, the hard limit two hours
+            who = "CLAUDE"; engage(text, seconds: 0, hard: 7200, manual: true)
+        } else { on(text, seconds: seconds) }
         if state != .on { let p = problem ?? "the lock did not come on"; owner = ""; ownerDepth = 0; ownerPid = 0; return ["ok": false, "error": p] }
         return ["ok": true, "lock": state.rawValue, "depth": 1]
     }
@@ -174,6 +189,13 @@ final class InputLock {
         off()
         return ["ok": true, "lock": state.rawValue]
     }
+    /// v28: the holder is alive (POST /beat {owner}). Answers the lock's state, so a holder learns at once that it ended.
+    func beat(owner o: String) -> [String: Any] {
+        if state == .on && !o.isEmpty && o == owner { lastBeat = Date(); return ["ok": true, "lock": state.rawValue, "owner": owner] }
+        return ["ok": false, "lock": state.rawValue, "owner": owner, "ended": ended]
+    }
+    private func resetOptions() { passKeys = false; plainBar = false; noBlob = false; escHold = 1; beatEvery = 0 }
+
     /// BlockInput Off inside a script: the lock is lifted for the rest of the run.
     func release() { if state == .on { off() } }
 
@@ -201,6 +223,18 @@ final class InputLock {
     /// Marko pressed TAKE OVER (or held Escape for a second). The running macro stops at its next step.
     func takeOver() {
         guard state == .on else { return }
+        if ended.isEmpty { ended = "takeover" }
+        if noBlob {                  // v28: the holder's own mode ends (Space Mode), the Mac is simply his again: no blob
+            let r = restoreAfter
+            closeBars(); removeTap(); ticker?.invalidate(); ticker = nil
+            lingerTimer?.invalidate(); lingerTimer = nil
+            manualHold = false; state = .off
+            owner = ""; ownerDepth = 0; ownerPid = 0; restoreAfter = true
+            resetOptions()
+            CGAssociateMouseAndMouseCursorPosition(1)
+            GuardBook.shared.finish("TAKE OVER", restore: r)
+            return
+        }
         overrides += 1
         if buttonSpot == nil || !fromButton { buttonSpot = mainSpot }
         fromButton = false
@@ -222,7 +256,10 @@ final class InputLock {
 
     func status() -> [String: Any] {
         var o: [String: Any] = ["lock": state.rawValue, "text": lastText, "runs": runDepth, "owner": owner, "depth": ownerDepth,
-                                "giving_back": GuardBook.shared.finishing]
+                                "giving_back": GuardBook.shared.finishing, "ended": ended]
+        if state == .on && (passKeys || plainBar || noBlob || beatEvery > 0) {
+            o["options"] = ["keys": passKeys ? "pass" : "swallow", "plain_bar": plainBar, "blob": !noBlob, "esc_hold": escHold, "beat": beatEvery]
+        }
         if state == .on { o["buffered_keys"] = GuardBook.shared.keyCount; o["noted_clicks"] = GuardBook.shared.clickCount; o["front_app"] = GuardBook.shared.frontName }
         if let e = endAt { o["left"] = max(0, Int(e.timeIntervalSinceNow)) }
         if state == .on { o["elapsed"] = Int(Date().timeIntervalSince(startAt)) }
@@ -239,6 +276,7 @@ final class InputLock {
         endAt = seconds > 0 ? Date().addingTimeInterval(Double(seconds)) : nil
         deadline = Date().addingTimeInterval(Double(hard))
         if state == .on { bars.forEach { $0.text.text = barText() }; return }
+        ended = ""
         guard AXIsProcessTrusted() else {
             problem = "Accessibility is missing for Macro Recorder (Mantra): the input lock is off"
             state = .off; manualHold = false
@@ -264,6 +302,7 @@ final class InputLock {
 
     /// v13 of the phone: the countdown. The time first, so a long label is cut, never the time.
     private func barText() -> String {
+        if plainBar { return label }                 // v28: the holder's own sentence, alone
         if let e = endAt {
             let left = Int(e.timeIntervalSinceNow.rounded(.down))
             let t = left > 0 ? String(format: "%d:%02d left", left / 60, left % 60) : "almost done"
@@ -276,15 +315,19 @@ final class InputLock {
     private func tick() {
         bars.forEach { $0.text.text = barText() }
         // the watchdog: a hard maximum, and nothing running and nothing held means nothing to lock
-        if Date() > deadline { off(); Engine.shared.say("input lock lifted: its time was up", GREYC, 3); return }
+        if Date() > deadline { ended = "time"; off(); Engine.shared.say("input lock lifted: its time was up", GREYC, 3); return }
+        if beatEvery > 0 && Date().timeIntervalSince(lastBeat) > beatEvery {
+            NSLog("[guard] %@ stopped beating: lifting", owner); ended = "heartbeat"; off()
+            Engine.shared.say("input lock lifted: its holder stopped answering", GREYC, 3); return
+        }
         if let t = tap, !CGEvent.tapIsEnabled(tap: t) { CGEvent.tapEnable(tap: t, enable: true) }
         if ownerPid > 0 && runDepth == 0 && kill(ownerPid, 0) != 0 && errno == ESRCH {
-            NSLog("[guard] holder %d is gone: lifting", ownerPid); off(); return
+            NSLog("[guard] holder %d is gone: lifting", ownerPid); ended = "holder-gone"; off(); return
         }
         // holding Escape for one second takes over too
         if CGEventSource.keyState(.hidSystemState, key: 0x35) {
             if escSince == nil { escSince = Date() }
-            if Date().timeIntervalSince(escSince!) >= 1 { escSince = nil; takeOver() }
+            if Date().timeIntervalSince(escSince!) >= escHold { escSince = nil; ended = "escape"; takeOver() }
         } else { escSince = nil }
     }
 
@@ -294,39 +337,62 @@ final class InputLock {
     static let BTN_W: CGFloat = 236, BTN_H: CGFloat = 22, BAR_H: CGFloat = 30, GAP: CGFloat = 14
     private var buttonSpot: (screen: NSScreen, rect: NSRect)?     // where TAKE OVER is, in screen coordinates (Cocoa)
 
+    /// One bar: the panel for frame f (bottom of a screen), its text and its TAKE OVER (button frame inside the bar).
+    private func makeBar(_ f: NSRect) -> (panel: NSPanel, text: CapText, button: ClickView) {
+        let h = InputLock.BAR_H
+        let p = BarPanel(contentRect: f, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.title = "Macro Recorder input lock bar"
+        p.level = .statusBar; p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = false
+        p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+        p.hidesOnDeactivate = false; p.ignoresMouseEvents = false
+        p.sharingType = .readOnly            // visible to screen capture and CGWindowList (layer 25, owner "MacroRecorder")
+        let v = NSView(frame: NSRect(origin: .zero, size: f.size)); v.wantsLayer = true
+        v.layer?.backgroundColor = InputLock.BARBG.cgColor
+        let bw = InputLock.BTN_W
+        let room = max(120, f.width - bw - InputLock.GAP - 40)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .bold)
+        let want = plainBar ? ceil((barText() as NSString).size(withAttributes: [.font: font]).width) + 8 : 420
+        let tw = min(want, room)
+        let x0 = ((f.width - (tw + InputLock.GAP + bw)) / 2).rounded()
+        let t = CapText(frame: NSRect(x: x0, y: 0, width: tw, height: h), font: font, color: InputLock.ORANGE, centred: false)
+        t.text = barText()
+        let b = ClickView(frame: NSRect(x: x0 + tw + InputLock.GAP, y: (h - InputLock.BTN_H) / 2, width: bw, height: InputLock.BTN_H)); b.wantsLayer = true
+        b.layer?.backgroundColor = InputLock.ORANGE.cgColor; b.layer?.cornerRadius = 8
+        let bt = CapText(frame: NSRect(x: 0, y: 0, width: bw, height: InputLock.BTN_H), font: .boldSystemFont(ofSize: 13), color: .black, centred: true)
+        bt.text = "TAKE OVER"
+        b.addSubview(bt)
+        b.setAccessibilityLabel("TAKE OVER"); b.setAccessibilityRole(.button); b.setAccessibilityIdentifier("takeover")
+        v.addSubview(t); v.addSubview(b)
+        p.contentView = v
+        return (p, t, b)
+    }
+
     private func showBars() {
         closeBars()
         let primaryH = NSScreen.screens.first?.frame.height ?? 0
         for s in NSScreen.screens {
-            let h = InputLock.BAR_H
-            let f = NSRect(x: s.frame.minX, y: s.visibleFrame.minY, width: s.frame.width, height: h)   // v26: bottom of the screen, just above the Dock
-            let p = BarPanel(contentRect: f, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-            p.title = "Macro Recorder input lock bar"
-            p.level = .statusBar; p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = false
-            p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
-            p.hidesOnDeactivate = false; p.ignoresMouseEvents = false
-            p.sharingType = .readOnly            // visible to screen capture and CGWindowList (layer 25, owner "MacroRecorder")
-            let v = NSView(frame: NSRect(origin: .zero, size: f.size)); v.wantsLayer = true
-            v.layer?.backgroundColor = InputLock.BARBG.cgColor
-            let bw = InputLock.BTN_W
-            let tw = min(420, max(120, f.width - bw - InputLock.GAP - 40))
-            let x0 = ((f.width - (tw + InputLock.GAP + bw)) / 2).rounded()
-            let t = CapText(frame: NSRect(x: x0, y: 0, width: tw, height: h), font: .monospacedDigitSystemFont(ofSize: 13, weight: .bold), color: InputLock.ORANGE, centred: false)
-            t.text = barText()
-            let b = ClickView(frame: NSRect(x: x0 + tw + InputLock.GAP, y: (h - InputLock.BTN_H) / 2, width: bw, height: InputLock.BTN_H)); b.wantsLayer = true
-            b.layer?.backgroundColor = InputLock.ORANGE.cgColor; b.layer?.cornerRadius = 8
-            let bt = CapText(frame: NSRect(x: 0, y: 0, width: bw, height: InputLock.BTN_H), font: .boldSystemFont(ofSize: 13), color: .black, centred: true)
-            bt.text = "TAKE OVER"
-            b.addSubview(bt)
-            let rect = NSRect(x: f.minX + b.frame.minX, y: f.minY + b.frame.minY, width: bw, height: InputLock.BTN_H)
+            let f = NSRect(x: s.frame.minX, y: s.visibleFrame.minY, width: s.frame.width, height: InputLock.BAR_H)   // v26: bottom of the screen, just above the Dock
+            let (p, t, b) = makeBar(f)
+            let rect = NSRect(x: f.minX + b.frame.minX, y: f.minY + b.frame.minY, width: b.frame.width, height: b.frame.height)
             b.onClick = { [weak self] in self?.buttonSpot = (s, rect); self?.fromButton = true; self?.takeOver() }
             if s == (NSScreen.main ?? NSScreen.screens[0]) { mainSpot = (s, rect) }
-            b.setAccessibilityLabel("TAKE OVER"); b.setAccessibilityRole(.button); b.setAccessibilityIdentifier("takeover")
-            v.addSubview(t); v.addSubview(b)
-            p.contentView = v
             p.orderFrontRegardless()
             bars.append((panel: p, text: t))
             barRects.append(CGRect(x: f.minX, y: primaryH - f.maxY, width: f.width, height: f.height))
+        }
+    }
+
+    /// v28: --bar-shot: the bar as a holder with plain_bar shows it, drawn off every screen into a PNG, then the app quits.
+    func shot(_ text: String, to path: String) {
+        plainBar = true; label = text
+        let w = NSScreen.main?.frame.width ?? 1512
+        let (p, _, _) = makeBar(NSRect(x: -20000, y: -20000, width: w, height: InputLock.BAR_H))
+        p.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            guard let v = p.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { exit(1) }
+            v.cacheDisplay(in: v.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+            print("shot \(path)"); exit(0)
         }
     }
     private var mainSpot: (screen: NSScreen, rect: NSRect)?
@@ -399,6 +465,7 @@ final class InputLock {
         if e.getIntegerValueField(.eventSourceUserData) == MACRO_MARK { return pass }       // the macro's own hands
         switch type {
         case .keyDown, .keyUp, .flagsChanged:
+            if passKeys { return pass }                  // v28: the holder owns the keyboard (Talk Mode's Space Mode tap)
             // the stop key of the macro recorder (⌃⌥⌘. by default) always works
             if let b = Engine.shared.settings.keys["stop"], KeyMap.codes[b.key] == Int(e.getIntegerValueField(.keyboardEventKeycode)) { return pass }
             if type == .keyDown { GuardBook.shared.noteKey(e) }         // v27: kept, replayed where he was when it lifts
@@ -422,6 +489,7 @@ final class InputLock {
 // MARK: the same routes as the phone, on this Mac: 127.0.0.1:8829
 
 /// GET /status, POST /lock {text, seconds}, /unlock, /through {ms}, /request {text}. Loopback only.
+/// v28: POST /lock also takes {keys: "pass", plain_bar: true, blob: false, esc_hold: 2, beat: 5}; POST /beat {owner}.
 final class LockServer {
     static let shared = LockServer()
     static let PORT: UInt16 = 8829
@@ -470,8 +538,15 @@ final class LockServer {
             switch (method, path) {
             case ("GET", "/status"), ("GET", "/"): out = L.status(); out["app"] = "macrorecorder"; out["version"] = VERSION
             case ("POST", "/lock") where j["owner"] != nil:
+                var op = InputLock.Options()
+                op.passKeys = (j["keys"] as? String) == "pass"
+                op.plainBar = j["plain_bar"] as? Bool ?? false
+                op.noBlob = (j["blob"] as? Bool) == false
+                op.escHold = (j["esc_hold"] as? Double) ?? Double(j["esc_hold"] as? Int ?? 1)
+                op.beat = (j["beat"] as? Double) ?? Double(j["beat"] as? Int ?? 0)
                 out = L.guardLock(j["text"] as? String ?? "working", seconds: j["seconds"] as? Int ?? 120, owner: j["owner"] as? String ?? "",
-                                  pid: pid_t(j["pid"] as? Int ?? 0), restore: j["restore"] as? Bool ?? true)
+                                  pid: pid_t(j["pid"] as? Int ?? 0), restore: j["restore"] as? Bool ?? true, options: op)
+            case ("POST", "/beat"): out = L.beat(owner: j["owner"] as? String ?? "")
             case ("POST", "/unlock") where j["owner"] != nil:
                 out = L.guardUnlock(owner: j["owner"] as? String ?? "", lingerMs: j["linger_ms"] as? Int ?? 0)
             case ("GET", "/last"): out = GuardBook.shared.last; out["ok"] = true

@@ -22,7 +22,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 27
+let VERSION = 28
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -32,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        // v28: --bar-shot <file.png> "<text>": the lock bar alone, drawn off screen into a picture (no engine, no lock, no tap)
+        if let i = CommandLine.arguments.firstIndex(of: "--bar-shot"), i + 2 < CommandLine.arguments.count {
+            InputLock.shared.shot(CommandLine.arguments[i + 2], to: CommandLine.arguments[i + 1]); return
+        }
         mainMenu()
         e.start()
         e.openWindow = { [weak self] in self?.toggleWindow() }
