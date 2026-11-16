@@ -159,3 +159,12 @@ Please in my macro recorder mantra update at the top of the window should be dro
 
 13.11.2026, Marko (word for word): "now, please send another agent to work on this thing in a virtual machine. I want to have the same system as here. There is a Claude Code installed. Queen is not installed. Queen must be in the virtual machine, and everything I'm doing there must be executed with the Queen and Macro Recorder. Macro Recorder needs to be translated to Linux, exactly the same as here. When I'm going there in my virtual machine, I'm asking Claude Code to do two things: it has Macro Recorder, it has Queen, and any lessons or skills are written in the same repository as this computer is doing. It means we are in two locations. We are training Queen and Macro Recorder to be improved, and all this knowledge is coming to the common database for Macro Recorder and the Queen. Please do that and start working on my virtual machine in the background with an agent"
 Status: saved first; in progress (two locations: Mac + chromium-vm).
+
+## 16.11.2026: PAUSE / RESUME for every tool (Claude Control)
+> "Please expand the pause to macro recorder and Queen. All our tools need to be paused at the same time and need to have this kind of API calls to be stopped."
+
+Macro Recorder gets a real PAUSE / RESUME / STATUS API: while paused, a running or queued macro stops between steps, nothing
+new starts, no click or key fires; RESUME continues exactly where it stopped. The app is never frozen (SIGSTOP would trap his
+keyboard in the lock): a held input lock lets his keys and mouse through while paused and takes them again on resume. PAUSED
+shows in the menu bar and on the lock bar. `macro pause`, `macro resume`, `macro pause-status`; HTTP 127.0.0.1:8829
+POST /pause, POST /resume, GET /pause; registered in ~/.config/claude-control/tools.json. **Status:** in progress (v29).
