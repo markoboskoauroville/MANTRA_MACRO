@@ -84,11 +84,11 @@ enum HoverCard {
             let t = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
             button.addTrackingArea(t)
         }
-        override func mouseEntered(with e: NSEvent) {
+        @objc func mouseEntered(with e: NSEvent) {
             timer?.invalidate()
             timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in self?.show() }
         }
-        override func mouseExited(with e: NSEvent) { timer?.invalidate(); if !HoverCard.debugShot { hide() } }
+        @objc func mouseExited(with e: NSEvent) { timer?.invalidate(); if !HoverCard.debugShot { hide() } }
 
         func hide() { refresh?.invalidate(); panel?.orderOut(nil); panel = nil }
 
@@ -101,7 +101,7 @@ enum HoverCard {
             p.backgroundColor = .clear; p.isOpaque = false; p.hasShadow = true; p.ignoresMouseEvents = true
             p.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
             p.contentView = view
-            let size = view.fittingSize
+            let size = view.cardSize
             let bf = win.convertToScreen(button.convert(button.bounds, to: nil))
             var x = bf.midX - size.width / 2
             if let scr = win.screen ?? NSScreen.main { x = min(max(x, scr.frame.minX + 6), scr.frame.maxX - size.width - 6) }
@@ -112,7 +112,7 @@ enum HoverCard {
             refresh = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 guard let self, let p = self.panel else { return }
                 let v = CardView(self.provider()); p.contentView = v
-                let s = v.fittingSize; var f = p.frame; f.origin.y += f.height - s.height; f.size = s; p.setFrame(f, display: true)
+                let s = v.cardSize; var f = p.frame; f.origin.y += f.height - s.height; f.size = s; p.setFrame(f, display: true)
             }
         }
     }
@@ -130,10 +130,10 @@ enum HoverCard {
             for l in c.lines.prefix(4) { r.append((l, CardView.mono, NSColor(white: 1, alpha: 0.85))) }
             rows = r
             super.init(frame: .zero)
-            frame.size = fittingSize
+            frame.size = cardSize
         }
         required init?(coder: NSCoder) { fatalError() }
-        var fittingSize: NSSize {
+        var cardSize: NSSize {
             let w = rows.map { ($0.0 as NSString).size(withAttributes: [.font: $0.1]).width }.max() ?? 80
             let h = rows.reduce(CGFloat(20)) { $0 + ($1.0 as NSString).size(withAttributes: [.font: $1.1]).height + 3 }
             return NSSize(width: ceil(min(max(w, 140), 340)) + 28, height: ceil(h) + 2)
