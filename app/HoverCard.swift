@@ -64,6 +64,13 @@ enum HoverCard {
         NSRect(x: b.maxX - 1, y: y, width: 1, height: h).fill()
     }
 
+    /// A view that draws only the two pipes: add it first to a button whose content is another view; place the content inside pipeInset+2.
+    final class PipesView: NSView {
+        override var isFlipped: Bool { true }
+        override func hitTest(_ p: NSPoint) -> NSView? { nil }
+        override func draw(_ r: NSRect) { HoverCard.drawPipes(in: bounds) }
+    }
+
     // The card --------------------------------------------------------------
     private static var cards: [ObjectIdentifier: Controller] = [:]
 
@@ -72,39 +79,62 @@ enum HoverCard {
         let c = Controller(button: button, provider: provider)
         cards[ObjectIdentifier(item)] = c
         c.install()
-        if debugShot { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { c.show() } }
+        if debugShot { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { c.show() } }   // shows beside the item's own window
     }
 
     private final class Controller: NSObject {
         let button: NSStatusBarButton, provider: () -> Content
-        var panel: NSPanel?, timer: Timer?, refresh: Timer?
+        var panel: NSPanel?, poll: Timer?, refresh: Timer?
+        var hovering = false, enteredAt = Date()
         init(button: NSStatusBarButton, provider: @escaping () -> Content) { self.button = button; self.provider = provider }
 
+        /// Polled, not tracked: with several displays macOS draws the item once per menu bar, and only one copy owns the button.
+        /// The mouse is matched against the button's window and against this app's other status-bar windows of the same width.
         func install() {
-            let t = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
-            button.addTrackingArea(t)
+            let t = Timer(timeInterval: 0.12, repeats: true) { [weak self] _ in self?.tick() }
+            RunLoop.main.add(t, forMode: .common); poll = t
         }
-        @objc func mouseEntered(with e: NSEvent) {
-            timer?.invalidate()
-            timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in self?.show() }
+        func itemRect(at m: NSPoint) -> NSRect? {
+            guard let win = button.window else { return nil }
+            let own = button.convert(button.bounds, to: nil), f = win.convertToScreen(own)
+            if f.insetBy(dx: 0, dy: -1).contains(m) { return f }
+            let H = NSScreen.screens.first?.frame.height ?? 0
+            let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+            for w in list where (w[kCGWindowOwnerPID as String] as? Int32) == getpid() && (w[kCGWindowLayer as String] as? Int) == 25 {
+                guard let d = w[kCGWindowBounds as String] as? NSDictionary, let r = CGRect(dictionaryRepresentation: d) else { continue }
+                let c = NSRect(x: r.minX, y: H - r.maxY, width: r.width, height: r.height)
+                if abs(c.width - win.frame.width) < 1.5, c.contains(m) {
+                    return NSRect(x: c.minX + (f.minX - win.frame.minX), y: c.minY, width: f.width, height: c.height)
+                }
+            }
+            return nil
         }
-        @objc func mouseExited(with e: NSEvent) { timer?.invalidate(); if !HoverCard.debugShot { hide() } }
+        func tick() {
+            let m = NSEvent.mouseLocation
+            guard let scr = NSScreen.screens.first(where: { $0.frame.contains(m) }), m.y > scr.frame.maxY - 40,
+                  let rect = itemRect(at: m) else {
+                if hovering { hovering = false; if !HoverCard.debugShot { hide() } }
+                return
+            }
+            if !hovering { hovering = true; enteredAt = Date() }
+            if panel == nil, Date().timeIntervalSince(enteredAt) >= 0.4 { show(at: rect) }
+        }
 
         func hide() { refresh?.invalidate(); panel?.orderOut(nil); panel = nil }
 
-        func show() {
-            guard let win = button.window else { return }
-            let content = provider()
-            let view = CardView(content)
+        func show() { if let win = button.window { show(at: win.convertToScreen(button.convert(button.bounds, to: nil))) } }
+        func show(at bf: NSRect) {
+            let view = CardView(provider())
             let p = panel ?? NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             p.titleVisibility = .hidden; p.isFloatingPanel = true; p.level = .statusBar + 1; p.hidesOnDeactivate = false
             p.backgroundColor = .clear; p.isOpaque = false; p.hasShadow = true; p.ignoresMouseEvents = true
             p.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
             p.contentView = view
             let size = view.cardSize
-            let bf = win.convertToScreen(button.convert(button.bounds, to: nil))
             var x = bf.midX - size.width / 2
-            if let scr = win.screen ?? NSScreen.main { x = min(max(x, scr.frame.minX + 6), scr.frame.maxX - size.width - 6) }
+            if let scr = NSScreen.screens.first(where: { $0.frame.contains(NSPoint(x: bf.midX, y: bf.midY)) }) {
+                x = min(max(x, scr.frame.minX + 6), scr.frame.maxX - size.width - 6)
+            }
             p.setFrame(NSRect(x: x, y: bf.minY - size.height - 4, width: size.width, height: size.height), display: true)
             p.orderFrontRegardless()
             panel = p
