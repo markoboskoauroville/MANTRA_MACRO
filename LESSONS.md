@@ -270,3 +270,6 @@
     HTTP :8829 answers them on its own queue. A caller waiting on a paused app must not time out: the CLI stops counting while
     ~/.mantra_macro/paused exists and guard.py keeps waiting while /status says paused. Playback speed is 4 in settings.json:
     a test Sleep 500 lasts 125 ms, so time a pause test with long Sleeps.
+
+## Lesson: hover card and pipes (16.11.2026)
+Poll the mouse (macOS draws a status item once per display, only one copy owns the button, so a tracking area misses the other display). The panel needs `titleVisibility = .hidden` for the one-title guard. A non-activating NSPanel at statusBar+1 never takes focus. Pipes for text items: attributed title; for icon items: pipedIcon + rightPipe; for view items: drawPipes or PipesView.
