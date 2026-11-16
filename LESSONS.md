@@ -261,3 +261,12 @@
 50. **The guard that "slept" (14.11.2026).** A guard that callers reach "if it is running, else run as before" is no guard: the Router on 8870 was never installed, and nobody noticed for two days because every caller fell through silently. The guard is now in the app that is always running (Macro Recorder starts at login and already has Accessibility), typing callers REFUSE without it, and `guard status` / `guard log` show it working. Fronting a window is the dangerous moment, not typing: BiDi input goes to the page inside Firefox, but `browsingContext.activate` raises Firefox on the Mac, and from then on Marko's own keys land in the WhatsApp box. Anything that fronts a window holds the guard until his front app is given back.
 51. **Give back = app + window + element + caret, then the keys.** Activate (and AXFrontmost), AXRaise the window, set AXFocusedUIElement and AXSelectedTextRange, wait until NSWorkspace says it is front (poll, never block the main thread), only then replay as marked events with his own keycodes, modifiers and characters. Never replay into an app that did not come back: the clipboard keeps the text. A new holder is refused while a give-back is still replaying, or the next automation fronts Firefox under his replayed keys.
 52. **Test fixtures lie too.** iTerm2's default profile sends "claude" at start and TextEdit capitalises the first letter: both made the first end-to-end run fail with the guard working perfectly. Read the failure before touching the code.
+
+53. **Pause = a gate at the step boundary, never a frozen process (v29, 16.11.2026).** SIGSTOP on the app would freeze its event
+    tap with the lock on and trap Marko's keyboard. The gate lives in MacHost.check() (every action calls it first) and in the
+    Sleep wait (which adds the paused time to its end); the tiny waits INSIDE a click, double click, drag or key take
+    `pausable: false`, or a pause could leave a mouse button held down while he has the Mac. The inbox is single-file and
+    `busy` while a macro runs, so pause/resume must be read BEFORE the busy check (and answered without clearing busy), and
+    HTTP :8829 answers them on its own queue. A caller waiting on a paused app must not time out: the CLI stops counting while
+    ~/.mantra_macro/paused exists and guard.py keeps waiting while /status says paused. Playback speed is 4 in settings.json:
+    a test Sleep 500 lasts 125 ms, so time a pause test with long Sleeps.

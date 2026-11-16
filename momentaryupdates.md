@@ -167,4 +167,4 @@ Macro Recorder gets a real PAUSE / RESUME / STATUS API: while paused, a running 
 new starts, no click or key fires; RESUME continues exactly where it stopped. The app is never frozen (SIGSTOP would trap his
 keyboard in the lock): a held input lock lets his keys and mouse through while paused and takes them again on resume. PAUSED
 shows in the menu bar and on the lock bar. `macro pause`, `macro resume`, `macro pause-status`; HTTP 127.0.0.1:8829
-POST /pause, POST /resume, GET /pause; registered in ~/.config/claude-control/tools.json. **Status:** in progress (v29).
+POST /pause, POST /resume, GET /pause; registered in ~/.config/claude-control/tools.json. **Status:** done 16.11.2026, v29 built by GitHub, installed, tested (TAKEOVER). Left: Marko's own hand under a paused lock, the orange PAUSED seen on screen.
