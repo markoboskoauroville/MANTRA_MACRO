@@ -901,11 +901,12 @@ final class Overlay {
         // v29: while paused the menu bar always says so, in orange, before anything else it shows
         let paused = PauseGate.shared.paused
         if paused { t = t.isEmpty ? "PAUSED" : "PAUSED · " + t }
-        if t.isEmpty && !busy { item?.length = NSStatusItem.squareLength; b.attributedTitle = NSAttributedString(string: ""); b.imagePosition = .imageOnly; return }
+        if t.isEmpty && !busy { item?.length = NSStatusItem.variableLength; b.attributedTitle = HoverCard.rightPipe(); b.imagePosition = .imageLeading; return }
         item?.length = NSStatusItem.variableLength; b.imagePosition = .imageLeading
         let s = NSMutableAttributedString(string: " ● ", attributes: [.foregroundColor: paused ? ORANGEC : dotColour, .font: NSFont.systemFont(ofSize: 9)])
         s.append(NSAttributedString(string: t + (busy ? (t.isEmpty ? "working…" : " …") : ""),
                                     attributes: [.font: NSFont.menuBarFont(ofSize: 0)]))
+        s.append(HoverCard.rightPipe())
         b.attributedTitle = s
     }
     var dotColour: NSColor = .white

@@ -26,7 +26,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 29
+let VERSION = 30
 let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
@@ -63,7 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // records and green while it plays, with the window, record, play and quit
     func menuBarIcon() {
         let si = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        si.button?.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Macro Recorder")
+        si.length = NSStatusItem.variableLength
+        si.button?.image = HoverCard.pipedIcon(NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Macro Recorder"))
+        si.button?.imagePosition = .imageLeading
+        si.button?.attributedTitle = HoverCard.rightPipe()
         let m = NSMenu()
         m.addItem(withTitle: "Open Macro Recorder", action: #selector(openFromMenu), keyEquivalent: "").target = self
         m.addItem(withTitle: "Record / Stop (⌃⌥⌘R)", action: #selector(recordFromMenu), keyEquivalent: "").target = self
@@ -75,6 +78,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         m.addItem(withTitle: "Quit Macro Recorder", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         si.menu = m
         statusItem = si
+        HoverCard.attach(to: si) { [weak self] in
+            let paused = PauseGate.shared.paused, e = self?.e
+            let st = paused ? "PAUSED" : (e?.recording ?? false) ? "RECORDING" : (e?.playing ?? false) ? "PLAYING" : "IDLE"
+            let col: NSColor = paused ? ORANGEC : st == "RECORDING" ? .systemRed : st == "PLAYING" ? .systemGreen : .white
+            return HoverCard.Content(name: "Macro Recorder (Mantra)", what: "The one hand on the keyboard, mouse and screen", state: st, stateColor: col,
+                lines: ["Input lock: \(InputLock.shared.state)", "Macro in player: " + (e?.current ?? "last recording"),
+                        "Pauses this session: \(PauseGate.shared.pauses)" + (paused ? " (by " + PauseGate.shared.by + ")" : ""),
+                        "Last message: " + (Overlay.shared.text.isEmpty ? "none" : Overlay.shared.text)])
+        }
         Overlay.shared.item = si                 // v15: the messages go beside this icon, not on the screen
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let s = self, let b = s.statusItem?.button else { return }

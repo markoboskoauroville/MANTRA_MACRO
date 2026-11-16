@@ -168,3 +168,6 @@ new starts, no click or key fires; RESUME continues exactly where it stopped. Th
 keyboard in the lock): a held input lock lets his keys and mouse through while paused and takes them again on resume. PAUSED
 shows in the menu bar and on the lock bar. `macro pause`, `macro resume`, `macro pause-status`; HTTP 127.0.0.1:8829
 POST /pause, POST /resume, GET /pause; registered in ~/.config/claude-control/tools.json. **Status:** done 16.11.2026, v29 built by GitHub, installed, tested (TAKEOVER). Left: Marko's own hand under a paused lock, the orange PAUSED seen on screen.
+
+16.11.2026 (Marko, 16.11.2026): "Please with all my apps on the menu bar, make a comprehensive pop-up menu. When I hover over, I want to see what is it and what is it doing." and "for my apps always make a pipes before and after so I know where one app ends and other begins."
+**Status:** saved first; building in v30 (HoverCard kit, pipes around the icon and message).
