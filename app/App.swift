@@ -19,10 +19,15 @@
 // v24 (13.11.2026, Marko: "simply copy the system from the phone to this Mac"): THE INPUT LOCK (Lock.swift, a port of the
 // phone's Lock.kt): while any macro runs a thin bar at the top says CLAUDE · what · time left, an event tap swallows his
 // hands, TAKE OVER gives the Mac back; macro lock / unlock / lock-status / request, and 127.0.0.1:8829 like the phone.
+// v29 (16.11.2026, Marko: "All our tools need to be paused at the same time and need to have this kind of API calls to be
+// stopped."): PAUSE / RESUME (Pause.swift): macros stop between steps and continue where they stopped, his hands are free
+// while paused, PAUSED in orange in the menu bar; POST :8829/pause /resume, GET /pause; `macro pause|resume|pause-status`.
+// And the updater (Updater.swift, MANTRA_MANIFEST kits/mac-updater): it asks to update at start.
 import AppKit
 import SwiftUI
 
-let VERSION = 28
+let VERSION = 29
+let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -51,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let p = Permissions.state(), k = "\(p.access)\(p.input)\(p.screen)"
             if k != self?.lastPerm { self?.lastPerm = k; self?.e.changed() }
         }
+        Overlay.shared.render()                  // v29: PAUSED shows at once when it was paused before the restart
+        Updater.checkAtStart()                   // v29: asks to update when a newer release is Latest
     }
     // v7 (31.10.2026, released on its own, no longer opened from the star): an icon in the menu bar, red while it
     // records and green while it plays, with the window, record, play and quit
@@ -61,6 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         m.addItem(withTitle: "Open Macro Recorder", action: #selector(openFromMenu), keyEquivalent: "").target = self
         m.addItem(withTitle: "Record / Stop (⌃⌥⌘R)", action: #selector(recordFromMenu), keyEquivalent: "").target = self
         m.addItem(withTitle: "Play / Stop (⌃⌥⌘P)", action: #selector(playFromMenu), keyEquivalent: "").target = self
+        let pi = NSMenuItem(title: "Pause macros", action: #selector(pauseFromMenu), keyEquivalent: "")
+        pi.target = self; m.addItem(pi); pauseItem = pi
         m.addItem(.separator())
         m.addItem(withTitle: "Website and donations", action: #selector(siteFromMenu), keyEquivalent: "").target = self
         m.addItem(withTitle: "Quit Macro Recorder", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -69,11 +78,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Overlay.shared.item = si                 // v15: the messages go beside this icon, not on the screen
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let s = self, let b = s.statusItem?.button else { return }
-            let tint: NSColor? = s.e.recording ? .systemRed : (s.e.playing ? .systemGreen : nil)
+            let paused = PauseGate.shared.paused
+            let tint: NSColor? = paused ? ORANGEC : s.e.recording ? .systemRed : (s.e.playing ? .systemGreen : nil)
             if b.contentTintColor != tint { b.contentTintColor = tint }
+            let title = paused ? "Resume macros (PAUSED)" : "Pause macros"
+            if s.pauseItem?.title != title { s.pauseItem?.title = title }
         }
     }
     @objc func openFromMenu() { show() }
+    var pauseItem: NSMenuItem?
+    @objc func pauseFromMenu() { if PauseGate.shared.paused { PauseGate.shared.resume(by: "menu") } else { PauseGate.shared.pause(by: "menu") } }
     @objc func recordFromMenu() { e.toggleRecording() }
     @objc func playFromMenu() { e.playing ? e.stopPlaying() : e.play() }
     @objc func siteFromMenu() { NSWorkspace.shared.open(URL(string: RELEASES)!) }

@@ -21,11 +21,39 @@ final class Inbox {
     }
     func stop() { timer?.invalidate(); timer = nil }
 
+    // v29: these are answered at once, also while a macro runs (busy) and while paused
+    static let CONTROL = ["pause:", "resume:", "pause-status:"]
+    private func isControl(_ t: String) -> Bool { Inbox.CONTROL.contains { t == $0 || t.hasPrefix($0 + " ") } }
+
     private func look() {
-        guard !busy else { return }
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: INBOX) else { return }
-        guard let f = names.filter({ $0.hasSuffix(".ahk") }).sorted().first else { return }
+        let files = names.filter({ $0.hasSuffix(".ahk") }).sorted()
+        guard !files.isEmpty else { return }
+        // v29: PAUSE / RESUME / pause-status first, whatever else is happening (Pause.swift)
+        for f in files {
+            let path = INBOX + "/" + f
+            guard ((try? fm.attributesOfItem(atPath: path))?[.size] as? Int ?? 0) < 200 else { continue }      // a control file is one short line
+            let t = ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard isControl(t) else { continue }
+            try? fm.removeItem(atPath: path)
+            let id = String(f.dropLast(4))
+            let arg = String(t.drop(while: { $0 != ":" }).dropFirst()).trimmingCharacters(in: .whitespaces)
+            let o: [String: Any]
+            if t.hasPrefix("pause:") { o = PauseGate.shared.pause(by: arg.isEmpty ? "macro pause" : arg) }
+            else if t.hasPrefix("resume:") { o = PauseGate.shared.resume(by: arg.isEmpty ? "macro resume" : arg) }
+            else { o = PauseGate.shared.status() }
+            answer(id, true, (o["paused"] as? Bool ?? false) ? "paused" : "running", nil)
+        }
+        guard !busy else { return }
+        // v29: while paused, nothing new is taken (the files wait in the queue, in order); only the lock's status is answered
+        var pick: String?
+        for f in files where has(INBOX + "/" + f) {
+            if !PauseGate.shared.paused { pick = f; break }
+            let t = ((try? String(contentsOfFile: INBOX + "/" + f, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if t == "lock-status:" { pick = f; break }
+        }
+        guard let f = pick else { return }
         let path = INBOX + "/" + f, id = String(f.dropLast(4))
         let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -148,6 +176,7 @@ final class Inbox {
                 let parts = arg.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
                 let secs = parts.count > 1 ? Int(parts[0]) ?? 0 : 0
                 let text = parts.count > 1 ? parts[1...].joined(separator: " | ") : arg
+                if PauseGate.shared.paused { return finish(id, false, "paused: Macro Recorder is paused, nothing new starts until RESUME", nil) }
                 if L.state == .overridden { return finish(id, false, "overridden by Marko: the Mac is his until he gives it back (blob GIVE THE MAC BACK TO CLAUDE)", nil) }
                 if L.state == .on && !L.owner.isEmpty { return finish(id, false, "busy: the guard is held by " + L.owner + " (use `guard begin`, it waits its turn)", nil) }
                 L.on(text.isEmpty ? "Working on the Mac. It will be yours again when this disappears." : text, seconds: secs)
@@ -173,6 +202,10 @@ final class Inbox {
         Engine.shared.runScript(text, "macro do", by: .claude) { ok, msg, line in self.finish(id, ok, msg, line) }
     }
     private func finish(_ id: String, _ ok: Bool, _ msg: String?, _ line: Int?) {
+        answer(id, ok, msg, line)
+        busy = false
+    }
+    private func answer(_ id: String, _ ok: Bool, _ msg: String?, _ line: Int?) {
         var o: [String: Any] = ["ok": ok, "at": Date().timeIntervalSince1970]
         if let m = msg { o["message"] = m }
         if let l = line { o["line"] = l }
@@ -181,6 +214,5 @@ final class Inbox {
             try? d.write(to: URL(fileURLWithPath: tmp))
             try? FileManager.default.moveItem(atPath: tmp, toPath: INBOX + "/" + id + ".result.json")
         }
-        busy = false
     }
 }

@@ -34,6 +34,7 @@ final class Engine: ObservableObject {
         settings.load()
         if let c = settings.current { _ = loadMacro(c, quiet: true) }
         bindKeys()
+        PauseGate.shared.load()                  // v29: paused before a restart stays paused
         Inbox.shared.start()
         LockServer.shared.start()
     }
@@ -379,6 +380,11 @@ final class Engine: ObservableObject {
         releaseRunLock()
     }
     func runScript(_ t: String, _ name: String, by: Caller = .macro, done: ((Bool, String?, Int?) -> Void)? = nil) {
+        // v29: while paused nothing new starts (the inbox keeps its files; a key, a slot or PLAY is refused here)
+        if PauseGate.shared.paused {
+            let why = "paused: Macro Recorder is paused, nothing starts until RESUME (macro resume)"
+            say(why, ORANGEC, 3); done?(false, why, nil); return
+        }
         if playing { stopPlaying() }
         releaseRunLock()
         switch Script.parse(t) {
@@ -622,13 +628,25 @@ final class MacHost: ScriptHost {
     let src = CGEventSource(stateID: .hidSystemState)
     var e: Engine { Engine.shared }
 
-    func check() throws { if stopped { throw ScriptStopped() } }
+    // v29: check() is the step boundary: it stops (the stop key, TAKE OVER) and it holds while paused (Pause.swift)
+    func check() throws {
+        if stopped { throw ScriptStopped() }
+        if PauseGate.shared.paused { PauseGate.shared.gate { self.stopped } }
+        if stopped { throw ScriptStopped() }
+    }
+    func checkStop() throws { if stopped { throw ScriptStopped() } }
     func now() -> Double { Date().timeIntervalSince1970 }
-    // Sleep sleeps this thread in small steps, so the stop key is felt within a hundredth of a second
-    func wait(_ s: Double) throws {
-        try check()
-        let end = now() + max(0, s)
-        while now() < end { Thread.sleep(forTimeInterval: min(0.01, end - now())); try check() }
+    // Sleep sleeps this thread in small steps, so the stop key is felt within a hundredth of a second.
+    // v29: a Sleep (pausable) holds while paused and keeps the time it still had; the short waits inside one click, drag
+    // or key (pausable false) never pause, so no button or key is left half pressed while Marko has the Mac
+    func wait(_ s: Double, pausable: Bool = true) throws {
+        if pausable { try check() } else { try checkStop() }
+        var end = now() + max(0, s)
+        while now() < end {
+            Thread.sleep(forTimeInterval: max(0, min(0.01, end - now())))
+            try checkStop()
+            if pausable && PauseGate.shared.paused { end += PauseGate.shared.gate { self.stopped }; try checkStop() }
+        }
     }
     func sleep(_ seconds: Double) throws { try wait(seconds > 0 ? seconds / speed : 0) }
 
@@ -658,11 +676,11 @@ final class MacHost: ScriptHost {
         let p = (x != nil && y != nil) ? CGPoint(x: x!, y: y!) : pos()
         // the rhythm setting: every click at least this long after the last one
         if clickDelay > 0 { let since = now() - lastClickAt; if since < clickDelay { try wait(clickDelay - since) } }
-        move(p); try wait(0.01)
+        move(p); try wait(0.01, pausable: false)
         let n = max(1, times)
         for i in 1...n {
             mouse(b.0, p, b.3, mods, i); mouse(b.1, p, b.3, mods, i)
-            if i < n { try wait(0.06) }
+            if i < n { try wait(0.06, pausable: false) }
         }
         lastClickAt = now()
     }
@@ -675,12 +693,12 @@ final class MacHost: ScriptHost {
     func drag(_ button: String, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, _ mods: [String]) throws {
         try check()
         let b = MacHost.BUTTONS[button] ?? MacHost.BUTTONS["left"]!
-        move(CGPoint(x: x1, y: y1)); try wait(0.02)
+        move(CGPoint(x: x1, y: y1)); try wait(0.02, pausable: false)
         mouse(b.0, CGPoint(x: x1, y: y1), b.3, mods)
         for i in 1...12 {
             let t = Double(i) / 12
             mouse(b.2, CGPoint(x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t), b.3, mods)
-            try wait(0.015)
+            try wait(0.015, pausable: false)
         }
         mouse(b.1, CGPoint(x: x2, y: y2), b.3, mods)
         lastClickAt = now()
@@ -698,7 +716,7 @@ final class MacHost: ScriptHost {
         try check()
         let c = try code(name)
         keyEvent(c, true, mods); keyEvent(c, false, mods)
-        try wait(0.012)
+        try wait(0.012, pausable: false)
     }
     func keyDownUp(_ name: String, _ down: Bool, _ mods: [String]) throws { try check(); keyEvent(try code(name), down, mods) }
     // any character, including ones with no key: typed as text, like hs.eventtap.keyStrokes
@@ -743,6 +761,7 @@ final class MacHost: ScriptHost {
     func say(_ text: String, _ long: Bool) { e.sayWhilePlaying(text, long ? 3 : 1.6) }
     func run(_ what: String) {
         let w = what.hasPrefix("~") ? HOME + what.dropFirst() : what
+        PauseGate.shared.gate { self.stopped }; if stopped { return }      // v29
         DispatchQueue.main.async {
             if w.hasPrefix("http://") || w.hasPrefix("https://") || w.hasPrefix("file:") { NSWorkspace.shared.open(URL(string: w)!); return }
             // v9 (1.11.2026, for Elevate Media Project Monitor's ▶ FINISH): an executable file (a script, a .command) is RUN,
@@ -775,7 +794,8 @@ final class MacHost: ScriptHost {
             .flatMap { ($0[kCGWindowOwnerPID as String] as? Int).map { pid_t($0) } }
     }
     func activate(_ title: String) -> Bool {
-        onMain {
+        PauseGate.shared.gate { self.stopped }; if stopped { return false }      // v29
+        return onMain {
             if let a = findApp(title) { return a.activate() }
             if let pid = windowOwner(title), let a = NSRunningApplication(processIdentifier: pid) { return a.activate() }
             let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/open"); p.arguments = ["-a", title]
@@ -790,6 +810,7 @@ final class MacHost: ScriptHost {
     }
     // MenuSelect (v6, 31.10.2026): the app's menu bar through Accessibility, each name matched without case, "…" = "..."
     func menuSelect(_ title: String, _ path: [String]) -> Bool {
+        PauseGate.shared.gate { self.stopped }; if stopped { return false }      // v29
         guard let app = onMain({ findApp(title) ?? windowOwner(title).flatMap { NSRunningApplication(processIdentifier: $0) } }) else { return false }
         func clean(_ s: String) -> String { s.replacingOccurrences(of: "…", with: "...").lowercased().trimmingCharacters(in: .whitespaces) }
         func attr(_ e: AXUIElement, _ n: String) -> AnyObject? { var v: AnyObject?; AXUIElementCopyAttributeValue(e, n as CFString, &v); return v }
@@ -820,7 +841,7 @@ final class MacHost: ScriptHost {
         guard let r = mine.compactMap(rect).max(by: { $0.width * $0.height < $1.width * $1.height }) else { return nil }
         return (Double(r.minX), Double(r.minY), Double(r.width), Double(r.height))
     }
-    func winOp(_ op: String, _ args: [String]) -> (Bool, String) { op.hasPrefix("layout") ? Layouts.fromInbox(op + ":", args.first ?? "") : WinMgr.fromInbox(op + ":", args.joined(separator: " | ")) }
+    func winOp(_ op: String, _ args: [String]) -> (Bool, String) { PauseGate.shared.gate { self.stopped }; if stopped { return (false, "stopped") }; return op.hasPrefix("layout") ? Layouts.fromInbox(op + ":", args.first ?? "") : WinMgr.fromInbox(op + ":", args.joined(separator: " | ")) }
     // Recalibrate "name" (v8): runs on the player's thread, so the pictures it takes do not stop the window
     func recalibrate(_ name: String) -> (Bool, String) {
         let r = Recal.recalibrate(name.isEmpty ? e.playName : name)
@@ -876,10 +897,13 @@ final class Overlay {
     var text = "", busy = false
     func render() {
         guard let b = item?.button else { return }
-        let t = text.count > 60 ? String(text.prefix(59)) + "…" : text
+        var t = text.count > 60 ? String(text.prefix(59)) + "…" : text
+        // v29: while paused the menu bar always says so, in orange, before anything else it shows
+        let paused = PauseGate.shared.paused
+        if paused { t = t.isEmpty ? "PAUSED" : "PAUSED · " + t }
         if t.isEmpty && !busy { item?.length = NSStatusItem.squareLength; b.attributedTitle = NSAttributedString(string: ""); b.imagePosition = .imageOnly; return }
         item?.length = NSStatusItem.variableLength; b.imagePosition = .imageLeading
-        let s = NSMutableAttributedString(string: " ● ", attributes: [.foregroundColor: dotColour, .font: NSFont.systemFont(ofSize: 9)])
+        let s = NSMutableAttributedString(string: " ● ", attributes: [.foregroundColor: paused ? ORANGEC : dotColour, .font: NSFont.systemFont(ofSize: 9)])
         s.append(NSAttributedString(string: t + (busy ? (t.isEmpty ? "working…" : " …") : ""),
                                     attributes: [.font: NSFont.menuBarFont(ofSize: 0)]))
         b.attributedTitle = s

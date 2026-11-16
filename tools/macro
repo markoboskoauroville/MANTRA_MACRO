@@ -27,8 +27,35 @@
 #     v27: lock/unlock = `guard begin` / `guard end` (one holder at a time, idle wait, his app/field/caret back, his keys replayed).
 #     Every `macro do` / `macro run` locks by itself for its length; MACRO_SECONDS=N sets the countdown of a `macro do`.
 #     After TAKE OVER every run answers "overridden by Marko" until he clicks the orange blob GIVE THE MAC BACK TO CLAUDE.
+#   macro pause  /  macro resume  /  macro pause-status   (v29, 16.11.2026, for Claude Control) PAUSE stops every macro
+#     BETWEEN steps and starts nothing new (queued calls wait, their timeout does not run while paused); his keys and mouse
+#     are free while paused even under a held lock; RESUME continues exactly where it stopped. pause-status prints
+#     `paused` or `running`, exit 0. HTTP: POST 127.0.0.1:8829/pause /resume, GET /pause {"paused": true|false}.
+#     App not running: the state is kept in ~/.mantra_macro/paused and the app starts paused.
 # Prints ok or the error (recalibrate and view print their report); exit 0 on ok. Waits up to MACRO_TIMEOUT seconds (default 120).
 case "$1" in has) shift; exec macroskill has "$@" ;; skills) shift; exec macroskill "$@" ;; esac
+# v29: pause / resume / pause-status over 127.0.0.1:8829 (answered at once, also while a macro runs)
+PF="$HOME/.mantra_macro/paused"
+case "$1" in
+  pause|resume)
+    by="${2:-macro $1}"; by=$(printf '%s' "$by" | tr -d '"\\')
+    r=$(curl -s -m 3 -X POST -H 'Content-Type: application/json' -d "{\"by\":\"$by\"}" "http://127.0.0.1:8829/$1" 2>/dev/null)
+    case "$r" in
+      *'"paused":true'*) echo paused; exit 0 ;;
+      *'"paused":false'*) echo running; exit 0 ;;
+    esac
+    if [ "$1" = pause ]; then mkdir -p "$HOME/.mantra_macro"; printf '%s\n' "$by" > "$PF"; echo paused; echo "(Macro Recorder is not running: it will start paused)" >&2
+    else rm -f "$PF"; echo running; echo "(Macro Recorder is not running)" >&2; fi
+    exit 0 ;;
+  pause-status)
+    r=$(curl -s -m 3 http://127.0.0.1:8829/pause 2>/dev/null)
+    case "$r" in
+      *'"paused":true'*) echo paused ;;
+      *'"paused":false'*) echo running ;;
+      *) if [ -f "$PF" ]; then echo paused; else echo running; fi; echo "(Macro Recorder is not running)" >&2 ;;
+    esac
+    exit 0 ;;
+esac
 IN="$HOME/.mantra_macro/inbox"; mkdir -p "$IN"
 id="$(date +%s)-$$"
 case "$1" in
@@ -64,7 +91,7 @@ case "$1" in
   ax-focus-end) printf 'ax-focus-end: %s | %s | %s\n' "$2" "${3:-textarea}" "${4:-1}" > "$IN/$id.part" ;;
   ax-press) printf 'ax-press: %s | %s\n' "$2" "$3" > "$IN/$id.part" ;;
   view) if [ -n "$3" ]; then printf 'view: %s | %s\n' "$2" "$3" > "$IN/$id.part"; else printf 'view: %s\n' "$2" > "$IN/$id.part"; fi ;;
-  *) sed -n "2,31p" "$0"; exit 2 ;;
+  *) sed -n "2,36p" "$0"; exit 2 ;;
 esac
 # THE GUARD (v27, 14.11.2026; replaces the Router on 8870, which was never installed: every call "ran as before",
 # unguarded). Marko, 14.11.2026: "this guard should be available for any action happening by Claude or any of my star
@@ -85,7 +112,8 @@ esac
 mv "$IN/$id.part" "$IN/$id.ahk"
 pgrep -xq MacroRecorder || { echo "Macro Recorder is not running (open it from Applications)"; rm -f "$IN/$id.ahk"; exit 3; }
 t=0; lim=$(( ${MACRO_TIMEOUT:-120} * 10 ))
-while [ ! -f "$IN/$id.result.json" ]; do sleep 0.1; t=$((t+1)); [ $t -ge $lim ] && { echo "no answer in ${MACRO_TIMEOUT:-120} s"; exit 4; }; done
+# v29: the time does not run while Macro Recorder is paused (the call waits in the queue for RESUME)
+while [ ! -f "$IN/$id.result.json" ]; do sleep 0.1; [ -f "$PF" ] || t=$((t+1)); [ $t -ge $lim ] && { echo "no answer in ${MACRO_TIMEOUT:-120} s"; exit 4; }; done
 f="$IN/$id.result.json"; r=$(cat "$f")
 msg=$(plutil -extract message raw -o - "$f" 2>/dev/null)
 rm -f "$f"

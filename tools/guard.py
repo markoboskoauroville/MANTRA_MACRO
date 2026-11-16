@@ -123,6 +123,8 @@ def begin(what, seconds=120, restore=True, own=None, quiet=False):
         if not said and not quiet:
             print('guard: waiting, ' + (r.get('error') or 'busy'), file=sys.stderr)
             said = True
+        if r.get('paused') or status().get('paused'):
+            end = time.time() + QUEUE_MAX_S       # v29: Macro Recorder is paused: wait for RESUME, however long it takes
         if time.time() > end:
             raise Unavailable('guard: still busy after %d s: %s' % (QUEUE_MAX_S, r.get('error')))
         time.sleep(0.3)

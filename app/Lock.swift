@@ -90,6 +90,10 @@ final class InputLock {
     private var beatEvery: TimeInterval = 0
     private var lastBeat = Date()
     private(set) var ended = ""                      // how the last lock ended: unlock, takeover, escape, heartbeat, holder-gone, time
+    // v29 (16.11.2026) PAUSE: while paused the lock stays on (its owner, its bar) but lets Marko's hands through
+    private var pausedAt: Date?
+    private var macroApp: NSRunningApplication?      // the app the macro had in front when it paused: front again on resume
+    var isPaused: Bool { pausedAt != nil }
     struct Options { var passKeys = false; var plainBar = false; var noBlob = false; var escHold: TimeInterval = 1; var beat: TimeInterval = 0 }
 
     // MARK: the engine's side: a run starts and ends
@@ -133,6 +137,7 @@ final class InputLock {
         ticker?.invalidate(); ticker = nil
         lingerTimer?.invalidate(); lingerTimer = nil
         state = .off
+        pausedAt = nil; macroApp = nil
         CGAssociateMouseAndMouseCursorPosition(1)
         let r = restoreAfter
         owner = ""; ownerDepth = 0; ownerPid = 0; restoreAfter = true
@@ -158,6 +163,9 @@ final class InputLock {
             if !restore { restoreAfter = false }
             on(text, seconds: seconds)
             return ["ok": true, "lock": state.rawValue, "depth": ownerDepth, "nested": true]
+        }
+        if PauseGate.shared.paused {     // v29: a new holder waits for RESUME (guard.py keeps waiting while "paused")
+            return ["ok": false, "busy": true, "paused": true, "held_by": "(paused)", "error": "Macro Recorder is paused: nothing new starts until RESUME"]
         }
         owner = o; ownerDepth = 1; ownerPid = pid; restoreAfter = restore
         passKeys = options.passKeys; plainBar = options.plainBar; noBlob = options.noBlob
@@ -193,6 +201,32 @@ final class InputLock {
     func beat(owner o: String) -> [String: Any] {
         if state == .on && !o.isEmpty && o == owner { lastBeat = Date(); return ["ok": true, "lock": state.rawValue, "owner": owner] }
         return ["ok": false, "lock": state.rawValue, "owner": owner, "ended": ended]
+    }
+    /// v29: Macro Recorder paused. A lock that is on gives Marko his place and his held keys back (GuardBook) and from now
+    /// on lets his keys and mouse through; nothing else changes, so the same holder carries on after RESUME.
+    func pauseLock() {
+        guard state == .on, pausedAt == nil else { return }
+        pausedAt = Date()
+        let f = NSWorkspace.shared.frontmostApplication
+        macroApp = f?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : f
+        escSince = nil
+        GuardBook.shared.finish("paused", restore: restoreAfter)
+        bars.forEach { $0.text.text = barText() }
+    }
+    /// v29: RESUME. The time the pause took is added to the watchdog and the countdown; his place now is written down
+    /// (to give back at the end), the macro's app comes front again, and his hands are held again.
+    func resumeLock() {
+        guard let t0 = pausedAt else { return }
+        pausedAt = nil
+        let d = Date().timeIntervalSince(t0)
+        deadline = deadline.addingTimeInterval(d)
+        if let e = endAt { endAt = e.addingTimeInterval(d) }
+        lastBeat = Date()
+        guard state == .on else { macroApp = nil; return }
+        GuardBook.shared.begin(lastText)
+        if let a = macroApp, !a.isTerminated { a.activate() }
+        macroApp = nil
+        bars.forEach { $0.text.text = barText() }
     }
     private func resetOptions() { passKeys = false; plainBar = false; noBlob = false; escHold = 1; beatEvery = 0 }
 
@@ -256,7 +290,7 @@ final class InputLock {
 
     func status() -> [String: Any] {
         var o: [String: Any] = ["lock": state.rawValue, "text": lastText, "runs": runDepth, "owner": owner, "depth": ownerDepth,
-                                "giving_back": GuardBook.shared.finishing, "ended": ended]
+                                "giving_back": GuardBook.shared.finishing, "ended": ended, "paused": PauseGate.shared.paused]
         if state == .on && (passKeys || plainBar || noBlob || beatEvery > 0) {
             o["options"] = ["keys": passKeys ? "pass" : "swallow", "plain_bar": plainBar, "blob": !noBlob, "esc_hold": escHold, "beat": beatEvery]
         }
@@ -302,6 +336,7 @@ final class InputLock {
 
     /// v13 of the phone: the countdown. The time first, so a long label is cut, never the time.
     private func barText() -> String {
+        if pausedAt != nil { return "PAUSED · your Mac is yours until RESUME · " + label }     // v29
         if plainBar { return label }                 // v28: the holder's own sentence, alone
         if let e = endAt {
             let left = Int(e.timeIntervalSinceNow.rounded(.down))
@@ -314,6 +349,10 @@ final class InputLock {
 
     private func tick() {
         bars.forEach { $0.text.text = barText() }
+        if pausedAt != nil {        // v29: paused: no watchdog, no countdown, no Escape; only a holder that is gone lifts it
+            if ownerPid > 0 && runDepth == 0 && kill(ownerPid, 0) != 0 && errno == ESRCH { ended = "holder-gone"; off() }
+            return
+        }
         // the watchdog: a hard maximum, and nothing running and nothing held means nothing to lock
         if Date() > deadline { ended = "time"; off(); Engine.shared.say("input lock lifted: its time was up", GREYC, 3); return }
         if beatEvery > 0 && Date().timeIntervalSince(lastBeat) > beatEvery {
@@ -461,7 +500,7 @@ final class InputLock {
             if let t = tap { CGEvent.tapEnable(tap: t, enable: true) }      // macOS switched it off: on again
             return pass
         }
-        guard state == .on, Date() >= suspendedUntil else { return pass }
+        guard state == .on, pausedAt == nil, Date() >= suspendedUntil else { return pass }     // v29: paused = his hands pass
         if e.getIntegerValueField(.eventSourceUserData) == MACRO_MARK { return pass }       // the macro's own hands
         switch type {
         case .keyDown, .keyUp, .flagsChanged:
@@ -546,10 +585,16 @@ final class LockServer {
                 op.beat = (j["beat"] as? Double) ?? Double(j["beat"] as? Int ?? 0)
                 out = L.guardLock(j["text"] as? String ?? "working", seconds: j["seconds"] as? Int ?? 120, owner: j["owner"] as? String ?? "",
                                   pid: pid_t(j["pid"] as? Int ?? 0), restore: j["restore"] as? Bool ?? true, options: op)
+            // v29: PAUSE / RESUME (Pause.swift), for Claude Control and `macro pause|resume|pause-status`
+            case ("POST", "/pause"): out = PauseGate.shared.pause(by: j["by"] as? String ?? "api")
+            case ("POST", "/resume"): out = PauseGate.shared.resume(by: j["by"] as? String ?? "api")
+            case ("GET", "/pause"), ("GET", "/pause-status"): out = PauseGate.shared.status()
             case ("POST", "/beat"): out = L.beat(owner: j["owner"] as? String ?? "")
             case ("POST", "/unlock") where j["owner"] != nil:
                 out = L.guardUnlock(owner: j["owner"] as? String ?? "", lingerMs: j["linger_ms"] as? Int ?? 0)
             case ("GET", "/last"): out = GuardBook.shared.last; out["ok"] = true
+            case ("POST", "/lock") where PauseGate.shared.paused:
+                out = ["ok": false, "busy": true, "paused": true, "error": "Macro Recorder is paused: nothing new starts until RESUME"]
             case ("POST", "/lock"):
                 if L.state == .on && !L.owner.isEmpty { out = ["ok": false, "busy": true, "error": "held by " + L.owner]; break }
                 L.on(j["text"] as? String ?? "Working on the Mac. It will be yours again when this disappears.", seconds: j["seconds"] as? Int ?? 0); out = ["ok": true, "lock": L.state.rawValue]
