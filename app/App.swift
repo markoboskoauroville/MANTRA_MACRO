@@ -23,10 +23,12 @@
 // stopped."): PAUSE / RESUME (Pause.swift): macros stop between steps and continue where they stopped, his hands are free
 // while paused, PAUSED in orange in the menu bar; POST :8829/pause /resume, GET /pause; `macro pause|resume|pause-status`.
 // And the updater (Updater.swift, MANTRA_MANIFEST kits/mac-updater): it asks to update at start.
+// v31 (19.11.2026): the save-dialog workflow uses the existing capture, Accessibility and OCR tools; file-rename safely
+// renames one regular file in place, preserves its extension and refuses to overwrite a destination.
 import AppKit
 import SwiftUI
 
-let VERSION = 30
+let VERSION = 31
 let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 

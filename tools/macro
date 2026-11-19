@@ -12,6 +12,7 @@
 #     captures go to ~/.mantra_macro/captures/ unless a file is given; prints the path
 #   macro ocr [screen|window:<app>|rect:x,y,w,h] [--json]   the text on screen, lines with their middle x,y (Apple Vision, v19)
 #   macro find-text "<text>" [area]  /  macro click-text "<text>" [area]  /  macro wait-text "<text>" [secs] [area]
+#   macro file-rename "<source path>" "<new filename>"   rename one file in place; same extension, no overwrite (v31)
 #   macro win-list   /   macro win-move <x|-> <y|-> <w|-> <h|-> "<title>"   (v20, Rectangle's engine, Accessibility only)
 #   macro win-snap "<title>" <action> [display]   action: left-half right-half top-half bottom-half maximize almost-maximize center
 #     first-third center-third last-third first-two-thirds last-two-thirds top-left top-right bottom-left bottom-right
@@ -81,6 +82,10 @@ case "$1" in
   ocr) a="${2:-screen}"; case "$a" in --json) a=screen; j=json;; esac; [ "$3" = "--json" ] && j=json; printf 'ocr: %s | %s\n' "$a" "${j:-text}" > "$IN/$id.part" ;;
   find-text|click-text) printf '%s: %s | %s\n' "$1" "$2" "${3:-screen}" > "$IN/$id.part" ;;
   wait-text) printf 'wait-text: %s | %s | %s\n' "$2" "${3:-10}" "${4:-screen}" > "$IN/$id.part"; MACRO_TIMEOUT=$(( ${3:-10} + 30 )) ;;
+  file-rename)
+    [ "$#" -eq 3 ] || { echo 'usage: macro file-rename "<source path>" "<new filename>"' >&2; exit 2; }
+    payload=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$2" "$3") || exit 2
+    printf 'file-rename: %s\n' "$payload" > "$IN/$id.part" ;;
   win-list) printf 'win-list:\n' > "$IN/$id.part" ;;
   win-move) m() { [ "$1" = "-" ] && echo "" || echo "$1"; }; printf 'win-move: %s | %s | %s | %s | %s\n' "$(m "$2")" "$(m "$3")" "$(m "$4")" "$(m "$5")" "$6" > "$IN/$id.part" ;;
   win-snap) printf 'win-snap: %s | %s | %s\n' "$2" "$3" "$4" > "$IN/$id.part" ;;
@@ -124,6 +129,8 @@ case "$1:$r" in
   capture-page:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   ocr:*'"ok":true'*|find-text:*'"ok":true'*|click-text:*'"ok":true'*|wait-text:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
   ocr:*|find-text:*|click-text:*|wait-text:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
+  file-rename:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
+  file-rename:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   layout:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;
   layout:*) printf 'error: %s\n' "${msg:-$r}"; exit 1 ;;
   lock:*'"ok":true'*|unlock:*'"ok":true'*|lock-status:*'"ok":true'*|request:*'"ok":true'*) printf '%s\n' "$msg"; exit 0 ;;

@@ -318,6 +318,19 @@ are): built into macOS, no download, offline. `app/Ocr.swift`.
   screenshot; the same four commands (`ocr`, `find-text`, `click-text`, `wait-text`) over the remote's existing socket, boxes
   in the phone's pixels. Left as the documented next step: the Pixel 7 emulator (Pixel_7_API_35) can test it, GitHub builds it.
 
+## Saving through native dialogs, and naming downloads (v31, 19.11.2026)
+
+The webpage and the native Save panel are different surfaces. Capture the display with `macro capture-screen 1`, inspect
+the returned PNG, and read the dialog with `macro ax-read "<app>"` first or `macro ocr screen` when Accessibility does not
+expose it. Use the exact field and button names that are actually shown; after entering the requested filename, read the
+panel again before pressing Save. If the panel remains open, capture and inspect it again instead of sending Save repeatedly.
+
+For websites that auto-download a generic name, rename only the exact new file:
+`macro file-rename "<source path>" "<new filename>"`. The command only renames a regular file in its current folder,
+preserves its extension, refuses to overwrite an existing destination, and verifies the result. It never uses a wildcard.
+Register the expected destination with Download Monitor before starting the export, then verify the exact file and mark the
+download complete only after it exists and has nonzero size.
+
 ## Windows: move and arrange (v20)
 
 WinMove, WinSnap (Rectangle's halves, thirds, quarters, maximize, center, next/previous display), WinMinimize, WinMaximize, WinRestore, WinMoveTop/Bottom and `macro win-list|win-move|win-snap`, through Accessibility only. Ported from Rectangle (MIT): THIRD_PARTY/LICENSE.md. See docs/SCRIPT.md.

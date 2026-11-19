@@ -124,6 +124,20 @@ final class Inbox {
             }
             return
         }
+        // v31: a verified, same-folder file rename for downloads whose site-generated name is generic.
+        if trimmed.hasPrefix("file-rename:") {
+            let payload = String(trimmed.dropFirst("file-rename:".count)).trimmingCharacters(in: .whitespaces)
+            guard let data = payload.data(using: .utf8),
+                  let value = try? JSONSerialization.jsonObject(with: data),
+                  let paths = value as? [String], paths.count == 2 else {
+                return finish(id, false, "file-rename: expected a JSON array with source path and new filename", nil)
+            }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let r = FileRename.run(paths[0], paths[1])
+                DispatchQueue.main.async { self.finish(id, r.0, r.1, nil) }
+            }
+            return
+        }
         // v11: "capture-page: x, y, w, h | down | /path/file.png" the whole page as one picture (PageCapture.swift)
         if trimmed.hasPrefix("capture-page:") {
             let arg = String(trimmed.dropFirst("capture-page:".count))
