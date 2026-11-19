@@ -101,10 +101,12 @@ macro, which opens iTerm with a command instead of typing into it. Published v9 
 name is generic. It only accepts a regular file, keeps the file in the same folder and preserves the extension; it refuses
 an existing destination and verifies that the source disappeared and the destination retained the same byte count.
 The save-dialog workflow uses existing `capture-screen`, `ax-read`, and `ocr` before pressing Save, then reads the dialog
-back and verifies the exact output. `tests/FileRenameTests.swift` passes all 9 checks. `NO_INSTALL=1 SIGN=- ./build.sh
---no-publish` builds v31 successfully; it was not installed or published. The combined test script runs the 9 rename checks
-first, then stops at its existing `Script.swift` compile errors (`PageCapture`, `Pictures`, `AX`, and `InputLock` are not
-included in that test command); that unrelated harness was left unchanged.
+back and verifies the exact output. `tests/FileRenameTests.swift` passes all 9 checks. `NO_INSTALL=1 SIGN=- ./build.sh --no-publish` builds v31 successfully.
+GitHub run 44547780398 passed and published Macro Recorder v31 Latest:
+https://github.com/markoboskoauroville/MANTRA_MACRO/releases/tag/v31. This session did not install v31 locally.
+The combined test script runs the 9 rename checks first, then stops at its existing `Script.swift` compile errors
+(`PageCapture`, `Pictures`, `AX`, and `InputLock` are not included in that test command); that unrelated harness was left
+unchanged.
 
 ## Menu-bar hover card and pipes (v30, 16.11.2026)
 Marko: "with all my apps on the menu bar, make a comprehensive pop-up menu. When I hover over, I want to see what is it and what is it doing." and "for my apps always make a pipes before and after so I know where one app ends and other begins." `app/HoverCard.swift` is the shared kit file (MANTRA_MANIFEST kits/menubar-hover, rule modules/menubar-hover.md): hovering the item about 0.4 s shows a card with name, what it is, state and live lines; a thin grey pipe stands before and after the visible title. The app supplies its lines in the `HoverCard.attach(...)` closure. Test without a mouse: launch with `--hovercard-shot`. Change the lines in the app; change the module only in the kit.
