@@ -282,3 +282,16 @@ done gate, placement) in a file with Foundation and CoreGraphics only, so the wo
 for it (compile-on-github.md). The "lock released" notice needs a debounce: workers take the lock several times in a row, so the
 release only counts after 2 s without a new lock, and only when the busy stretch was 2 s or more. Marko's own MACRO runs give no
 notice. Which screen he works on: copy FocusScreen's rule (caret, element, window, mouse); AX y is top-left of the primary screen.
+
+## Round 1: 8 of 10 (22.11.2026, v32 -> v33)
+Fable's score 8 of 10: full-screen never seen, and no Queen skill. Closed in v33. (1) Proof over a real full-screen Space: a throwaway python/AppKit window
+(not his apps) toggled to full screen on the MacBook screen, the lock held with `macro lock`; screenshot of that screen shows the blob (top centre, under the
+black menu-bar strip) and the lock bar with TAKE OVER at the bottom, both over the full-screen window; a stack of three (newest on top) and the blob on the MacBook
+screen (the focus was there) fine; front app the same before and after, the guard gave it back. No change to levels was needed (.statusBar + fullScreenAuxiliary +
+canJoinAllSpaces). (2) The blob's windows were listed by Accessibility but had no children: a view is an AX element only when `isAccessibilityElement()` says so;
+now the ✕ is "Close blob: <text>" and a sticky blob is a button with its text; `macro ax-press` closes them (the log says "clicked by Marko" for that too: it cannot tell
+a press from a click). (3) Quit: an Apple-event quit (`osascript quit`) and `macro ax-quit` both reach `applicationShouldTerminate`, so one guard covers every way;
+v32 had none, v33 refuses to quit while the input lock is held or the guard is giving his keys back (a blob says so) and the swap is done with `macro ax-quit` after
+checking `/status` lock off. The rule "AX quit, not osascript" is kept for the swap; the real protection is the guard. (4) Queen: skill tell-marko-on-screen in
+groq_ai_studio (queen_skills + qwen_app/queen_python_skills/tell_marko.py), tested by `queen "tell Marko on screen that ..."`. Not tried: the blob over Ableton's or
+Chrome's own full-screen Spaces (only the throwaway window).

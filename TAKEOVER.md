@@ -119,3 +119,4 @@ GET /blobs in LockServer), `--blob-shot` in App.swift, `macro blob` in tools/mac
 .github/workflows/build.yml before the build. Nothing was removed: every earlier command and control stays.
 Install: `gh release download v32`, unzip into /Applications, `codesign --force -s "Mantra Apps"`, same bundle id
 community.auroville.macrorecorder, so no permission is asked again. Not proven: how the blob reads over a full-screen app on each screen.
+v33 (22.11.2026): quit refused while the input lock is held (`applicationShouldTerminate`, covers menu, OFF, Apple event, ax-quit); blob ✕ ("Close blob: <text>") and sticky blobs answer `macro ax-press`; Queen's skill tell-marko-on-screen (groq_ai_studio) runs `macro blob`.
