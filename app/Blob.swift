@@ -28,6 +28,9 @@ private final class BlobView: NSView {
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseUp(with e: NSEvent) { if bounds.contains(convert(e.locationInWindow, from: nil)) { onClick?() } }
+    // v33: a sticky blob is a button for Accessibility (ax-press "<its text>" closes it); a plain one is a static text
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityPerformPress() -> Bool { guard onClick != nil else { return false }; onClick?(); return true }
     override func draw(_ r: NSRect) {
         let path = NSBezierPath(roundedRect: bounds, xRadius: 12, yRadius: 12)
         BLOB_BG.setFill(); path.fill()
@@ -47,6 +50,8 @@ private final class CloseArea: NSView {
     var onClick: (() -> Void)?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseUp(with e: NSEvent) { if bounds.contains(convert(e.locationInWindow, from: nil)) { onClick?() } }
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityPerformPress() -> Bool { onClick?(); return onClick != nil }
 }
 
 enum BlobLayout {
@@ -149,8 +154,9 @@ final class BlobCenter {
         let body = BlobPanel.make(frame: frame, interactive: it.sticky, title: "Macro Recorder text blob")
         let v = BlobView(frame: NSRect(origin: .zero, size: m.size))
         v.lines = m.lines; v.kind = it.kind
-        v.setAccessibilityLabel(it.text); v.setAccessibilityRole(.staticText)
         let id = it.id
+        v.setAccessibilityLabel(it.text); v.setAccessibilityRole(it.sticky ? .button : .staticText)
+        body.setAccessibilityLabel(it.text)
         if it.sticky { v.onClick = { [weak self] in self?.userClosed(id) } }
         body.contentView = v
         var closeP: BlobPanel?
@@ -158,8 +164,9 @@ final class BlobCenter {
             let c = BlobPanel.make(frame: NSRect(x: 0, y: 0, width: 30, height: 30), interactive: true, title: "Macro Recorder text blob close")
             let a = CloseArea(frame: NSRect(x: 0, y: 0, width: 30, height: 30))
             a.onClick = { [weak self] in self?.userClosed(id) }
-            a.setAccessibilityLabel("Close blob"); a.setAccessibilityRole(.button); a.setAccessibilityIdentifier("blobclose")
+            a.setAccessibilityLabel("Close blob: " + it.text); a.setAccessibilityRole(.button); a.setAccessibilityIdentifier("blobclose")
             c.contentView = a
+            c.setAccessibilityLabel("Close blob: " + it.text)
             closeP = c
         }
         body.alphaValue = 0

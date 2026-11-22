@@ -23,6 +23,7 @@
 // stopped."): PAUSE / RESUME (Pause.swift): macros stop between steps and continue where they stopped, his hands are free
 // while paused, PAUSED in orange in the menu bar; POST :8829/pause /resume, GET /pause; `macro pause|resume|pause-status`.
 // And the updater (Updater.swift, MANTRA_MANIFEST kits/mac-updater): it asks to update at start.
+// v33 (22.11.2026): quitting is refused while the input lock is held; the blob's ✕ and sticky body answer Accessibility presses.
 // v31 (19.11.2026): the save-dialog workflow uses the existing capture, Accessibility and OCR tools; file-rename safely
 // renames one regular file in place, preserves its extension and refuses to overwrite a destination.
 // v32 (22.11.2026, Marko: "the text blob which needs to pop up and if something needs to be said to me while I'm working on
@@ -32,7 +33,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 32
+let VERSION = 33
 let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
@@ -117,6 +118,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func siteFromMenu() { NSWorkspace.shared.open(URL(string: RELEASES)!) }
 
     func applicationShouldHandleReopen(_ s: NSApplication, hasVisibleWindows: Bool) -> Bool { show(); return true }
+    // v33 (22.11.2026): the app does not quit, by any way (menu, OFF, an Apple-event quit, `macro ax-quit`), while a session holds
+    // Marko's keyboard: a quit then would drop the guard in the middle of a test. The lock bar is the sign; quit again after it.
+    func applicationShouldTerminate(_ s: NSApplication) -> NSApplication.TerminateReply {
+        if InputLock.shared.state == .on || GuardBook.shared.finishing {
+            NSLog("[quit] refused: the input lock is held")
+            _ = BlobCenter.shared.show(text: "Macro Recorder stays open while a session holds your keyboard. Quit it again after the lock bar has gone.",
+                                      kind: .info, seconds: 8, sticky: false, id: "quit-refused")
+            return .terminateCancel
+        }
+        return .terminateNow
+    }
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ n: Notification) { e.stop() }
 
