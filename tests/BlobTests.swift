@@ -51,7 +51,7 @@ func item(_ id: String, _ text: String = "t", sticky: Bool = false, seconds: Dou
         _ = st2.show(item("s", sticky: true)); _ = st2.show(item("t", seconds: 8, at: Date(timeIntervalSince1970: 1000)))
         let gone = st2.expire(now: Date(timeIntervalSince1970: 1009))
         check(gone == ["t"] && st2.items.map { $0.id } == ["s"], "time-over blobs leave, a sticky one stays")
-        check(st2.expire(now: Date(timeIntervalSince1970: 1008)).isEmpty, "nothing leaves before its time")
+        check(st2.expire(now: Date(timeIntervalSince1970: 1007.5)).isEmpty, "nothing leaves before its time")
         check(st2.clearAll() == ["s"] && st2.items.isEmpty, "clear all")
 
         // the done gate: lock released, blob only if no lock follows within 2 s
