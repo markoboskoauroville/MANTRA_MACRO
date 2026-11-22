@@ -171,3 +171,8 @@ POST /pause, POST /resume, GET /pause; registered in ~/.config/claude-control/to
 
 16.11.2026 (Marko, 16.11.2026): "Please with all my apps on the menu bar, make a comprehensive pop-up menu. When I hover over, I want to see what is it and what is it doing." and "for my apps always make a pipes before and after so I know where one app ends and other begins."
 **Status:** saved first; building in v30 (HoverCard kit, pipes around the icon and message).
+
+## 22.11.2026: the text blob (Marko, word for word)
+> "Please also develop the text blob which needs to pop up and if something needs to be said to me while I'm working on computer and you are working in the background. For example, right now I want to have blob showing me the text. You can use the computer now. After you finish all this testing with the mouse and you testing my WhatsApp and you are testing also this styling, when it's done give me blob so I can continue working normally."
+
+**Status:** saved first. Building in v32 inside Macro Recorder (Mantra): `macro blob "<text>" [--seconds N] [--sticky] [--kind info|done|ask] [--id ID]`, `macro blob --clear <id>`, POST 127.0.0.1:8829/blob; top centre under the menu bar on the screen where he works, never takes focus; automatic "You can use the computer now" when the input lock is released and no other lock follows within 2 s.
