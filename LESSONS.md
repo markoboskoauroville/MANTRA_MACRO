@@ -273,3 +273,12 @@
 
 ## Lesson: hover card and pipes (16.11.2026)
 Poll the mouse (macOS draws a status item once per display, only one copy owns the button, so a tracking area misses the other display). The panel needs `titleVisibility = .hidden` for the one-title guard. A non-activating NSPanel at statusBar+1 never takes focus. Pipes for text items: attributed title; for icon items: pipedIcon + rightPipe; for view items: drawPipes or PipesView.
+
+## Lesson: the text blob (v32, 22.11.2026)
+A window that must never take focus AND let clicks through cannot be one window: `ignoresMouseEvents = true` on the body, and a
+separate 30x30 transparent panel on top for the ✕ (sticky blobs take the mouse on the body instead). Hit-testing to nil inside a
+window does not pass the click to the window below. Put every rule that can be tested without a window (duration, wrap, stack,
+done gate, placement) in a file with Foundation and CoreGraphics only, so the workflow compiles it alone; the Mac has no compiler
+for it (compile-on-github.md). The "lock released" notice needs a debounce: workers take the lock several times in a row, so the
+release only counts after 2 s without a new lock, and only when the busy stretch was 2 s or more. Marko's own MACRO runs give no
+notice. Which screen he works on: copy FocusScreen's rule (caret, element, window, mouse); AX y is top-left of the primary screen.

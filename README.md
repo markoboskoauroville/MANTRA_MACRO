@@ -334,3 +334,29 @@ download complete only after it exists and has nonzero size.
 ## Windows: move and arrange (v20)
 
 WinMove, WinSnap (Rectangle's halves, thirds, quarters, maximize, center, next/previous display), WinMinimize, WinMaximize, WinRestore, WinMoveTop/Bottom and `macro win-list|win-move|win-snap`, through Accessibility only. Ported from Rectangle (MIT): THIRD_PARTY/LICENSE.md. See docs/SCRIPT.md.
+
+## The text blob: "You can use the computer now" (v32, 22.11.2026)
+Marko: "the text blob which needs to pop up and if something needs to be said to me while I'm working on computer and you are
+working in the background." A session or worker has something short to say; it appears on his screen without taking his focus.
+
+    macro blob "<text>" [--seconds N] [--sticky] [--kind info|done|ask] [--id ID]
+    macro blob --clear <id|all>
+    curl -s -X POST 127.0.0.1:8829/blob -d '{"text":"...","kind":"done","seconds":8,"id":"x"}'     (GET /blobs: what is up, the last 20 events)
+
+- Look: a dark rounded panel (#101114), white text 15 pt, a 5 pt accent stripe on the left (info grey, done green, ask amber), a small
+  grey ✕ at the right. Top centre, 12 pt under the menu bar, on the screen where he is working (insertion point, focused element,
+  focused window, mouse: the rule of FocusScreen.swift in MANTRA_VOICE_TO_TEXT, copied into Blob.swift with a note). The bottom
+  centre belongs to the lock bar and Vox to Txt's ellipse, so the blob never covers them. At most three, newest on top, older leave
+  first. Text wraps to three lines, longer text ends with an ellipsis (the full text is in the log). Plain text, no markup.
+- Behaviour: never key, never main, never activates the app, every Space and over full-screen apps (status-bar level like the lock
+  bar), the mouse passes through except its own ✕ (a sticky blob closes on a click anywhere). Fade in and out, no sound.
+- Time: default 6 to 30 s by length (4 s + 0.07 s per character); `--seconds N` as given (1 to 120); `--sticky` stays until clicked.
+  The same `--id` replaces a blob in place; `--clear id|all` removes it.
+- By itself: the input lock is released (a CLAUDE lock, not his own MACRO run) and no other lock follows within 2 s, and the busy
+  stretch lasted 2 s or more: "You can use the computer now" (green, 8 s, id lock-done). A new lock takes it away again.
+- Log: ~/.mantra_macro/blob_log.jsonl, one line per event (shown, replaced, closed with how: time over, clicked by Marko, evicted,
+  cleared, lock taken again) with time, id, kind and the full text.
+- Test without a screen: `MacroRecorder --blob-shot out.png "text" [info|done|ask]` draws one blob off screen (no server, no lock).
+- Rules in tests/BlobTests.swift (workflow step): duration, wrap and cut, stack, replace and clear, the done gate, placement on the
+  portrait BenQ 1440x2560 + MacBook layout, and the pin that the blob window can never become key or main.
+- Not for questions: a question that needs him is asked in the chat (and by voice when the voice is on). A blob needs no answer.
