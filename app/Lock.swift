@@ -143,7 +143,7 @@ final class InputLock {
         owner = ""; ownerDepth = 0; ownerPid = 0; restoreAfter = true
         if wasOn && ended.isEmpty { ended = "unlock" }
         resetOptions()
-        if wasOn { GuardBook.shared.finish("done", restore: r) }
+        if wasOn { GuardBook.shared.finish("done", restore: r); BlobCenter.shared.lockReleased() }       // v32: "You can use the computer now"
     }
 
     // MARK: v27, the guard API (POST /lock with owner, POST /unlock with owner): Marko 14.11.2026, "this guard should be
@@ -329,6 +329,7 @@ final class InputLock {
         GuardBook.shared.begin(text)                     // v27: where Marko is now, to give it back
         showBars()
         state = .on
+        if who == "CLAUDE" { BlobCenter.shared.lockTaken() }      // (Marko's own MACRO runs give no notice)  // v32: a pending "You can use the computer now" waits again
         ticker?.invalidate()
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(ticker!, forMode: .common)
@@ -593,6 +594,9 @@ final class LockServer {
             case ("POST", "/unlock") where j["owner"] != nil:
                 out = L.guardUnlock(owner: j["owner"] as? String ?? "", lingerMs: j["linger_ms"] as? Int ?? 0)
             case ("GET", "/last"): out = GuardBook.shared.last; out["ok"] = true
+            // v32: the text blob (Blob.swift): POST /blob {text, kind, seconds, sticky, id} or {clear: id|"all"}, GET /blobs
+            case ("POST", "/blob"): out = BlobCenter.shared.handle(j)
+            case ("GET", "/blobs"): out = BlobCenter.shared.status()
             case ("POST", "/lock") where PauseGate.shared.paused:
                 out = ["ok": false, "busy": true, "paused": true, "error": "Macro Recorder is paused: nothing new starts until RESUME"]
             case ("POST", "/lock"):

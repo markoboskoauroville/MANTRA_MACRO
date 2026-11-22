@@ -25,10 +25,14 @@
 // And the updater (Updater.swift, MANTRA_MANIFEST kits/mac-updater): it asks to update at start.
 // v31 (19.11.2026): the save-dialog workflow uses the existing capture, Accessibility and OCR tools; file-rename safely
 // renames one regular file in place, preserves its extension and refuses to overwrite a destination.
+// v32 (22.11.2026, Marko: "the text blob which needs to pop up and if something needs to be said to me while I'm working on
+// computer and you are working in the background ... You can use the computer now."): `macro blob "<text>"` (Blob.swift): a
+// quiet panel top centre on the screen where he works, never takes focus; and by itself, when the input lock is released and
+// no other lock follows within two seconds, "You can use the computer now". POST :8829/blob, GET /blobs, ~/.mantra_macro/blob_log.jsonl.
 import AppKit
 import SwiftUI
 
-let VERSION = 31
+let VERSION = 32
 let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
@@ -43,7 +47,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let i = CommandLine.arguments.firstIndex(of: "--bar-shot"), i + 2 < CommandLine.arguments.count {
             InputLock.shared.shot(CommandLine.arguments[i + 2], to: CommandLine.arguments[i + 1]); return
         }
+        // v32: --blob-shot <file.png> "<text>" [info|done|ask]: one blob drawn off screen into a picture (no engine, no lock, no server)
+        if let i = CommandLine.arguments.firstIndex(of: "--blob-shot"), i + 2 < CommandLine.arguments.count {
+            let k = i + 3 < CommandLine.arguments.count ? BlobKind(rawValue: CommandLine.arguments[i + 3]) ?? .info : .info
+            BlobCenter.shared.shot(CommandLine.arguments[i + 2], kind: k, to: CommandLine.arguments[i + 1]); return
+        }
         mainMenu()
+        BlobCenter.shared.start()
         e.start()
         e.openWindow = { [weak self] in self?.toggleWindow() }
         buildWindow()

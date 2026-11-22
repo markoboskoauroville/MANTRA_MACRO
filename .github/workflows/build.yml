@@ -16,6 +16,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Blob tests (v32)
+        run: sh tests/run_blob_tests.sh
       - name: Build
         run: SIGN=- NO_INSTALL=1 ./build.sh
       - name: Pack

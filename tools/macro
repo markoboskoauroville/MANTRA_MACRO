@@ -28,6 +28,12 @@
 #     v27: lock/unlock = `guard begin` / `guard end` (one holder at a time, idle wait, his app/field/caret back, his keys replayed).
 #     Every `macro do` / `macro run` locks by itself for its length; MACRO_SECONDS=N sets the countdown of a `macro do`.
 #     After TAKE OVER every run answers "overridden by Marko" until he clicks the orange blob GIVE THE MAC BACK TO CLAUDE.
+#   macro blob "<text>" [--seconds N] [--sticky] [--kind info|done|ask] [--id ID]   /   macro blob --clear <id|all>   (v32, 22.11.2026)
+#     a short notice on Marko's screen while a session works in the background: a dark rounded panel, top centre under the menu bar
+#     of the screen where he works, never takes focus, no sound, at most 3 stacked. info = grey, done = green ("you can work"),
+#     ask = amber ("I need you"). Seconds: default 6 to 30 by length; --sticky stays until he clicks it. Same --id replaces or clears it.
+#     Plain English text, no answer expected (a question still goes in the chat). HTTP: POST 127.0.0.1:8829/blob, GET /blobs.
+#     The log is ~/.mantra_macro/blob_log.jsonl. By itself the app shows "You can use the computer now" when the input lock is released.
 #   macro pause  /  macro resume  /  macro pause-status   (v29, 16.11.2026, for Claude Control) PAUSE stops every macro
 #     BETWEEN steps and starts nothing new (queued calls wait, their timeout does not run while paused); his keys and mouse
 #     are free while paused even under a held lock; RESUME continues exactly where it stopped. pause-status prints
@@ -57,6 +63,33 @@ case "$1" in
     esac
     exit 0 ;;
 esac
+# v32: the text blob over 127.0.0.1:8829 (answered at once, no inbox)
+if [ "$1" = blob ]; then
+  shift
+  body=$(python3 - "$@" <<'PY'
+import json, sys
+a = sys.argv[1:]; d = {}; text = []
+i = 0
+while i < len(a):
+    x = a[i]
+    if x == "--seconds" and i + 1 < len(a): d["seconds"] = float(a[i + 1]); i += 2
+    elif x == "--kind" and i + 1 < len(a): d["kind"] = a[i + 1]; i += 2
+    elif x == "--id" and i + 1 < len(a): d["id"] = a[i + 1]; i += 2
+    elif x == "--clear": d["clear"] = a[i + 1] if i + 1 < len(a) else "all"; i += 2
+    elif x == "--sticky": d["sticky"] = True; i += 1
+    else: text.append(x); i += 1
+if "clear" not in d: d["text"] = " ".join(text)
+print(json.dumps(d))
+PY
+)
+  [ -n "$body" ] || { echo "usage: macro blob \"<text>\" [--seconds N] [--sticky] [--kind info|done|ask] [--id ID] | macro blob --clear <id|all>" >&2; exit 2; }
+  r=$(curl -s -m 5 -X POST -H 'Content-Type: application/json' -d "$body" http://127.0.0.1:8829/blob 2>/dev/null)
+  case "$r" in
+    *'"ok":true'*) echo "blob: $r"; exit 0 ;;
+    '') echo "Macro Recorder is not running (open it from Applications)" >&2; exit 3 ;;
+    *) echo "error: $r" >&2; exit 1 ;;
+  esac
+fi
 IN="$HOME/.mantra_macro/inbox"; mkdir -p "$IN"
 id="$(date +%s)-$$"
 case "$1" in
