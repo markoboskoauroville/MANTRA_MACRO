@@ -102,7 +102,8 @@ func item(_ id: String, _ text: String = "t", sticky: Bool = false, seconds: Dou
         check(!p.canBecomeKey && !p.canBecomeMain, "the blob window cannot become key or main")
         check(p.styleMask.contains(.nonactivatingPanel) && p.styleMask.contains(.borderless), "non-activating, borderless")
         check(p.collectionBehavior.contains(.fullScreenAuxiliary) && p.collectionBehavior.contains(.canJoinAllSpaces), "on every Space and over full-screen apps")
-        check(p.level == .statusBar && !p.hidesOnDeactivate, "status-bar level, stays when the app is not active")
+        check(p.level == .screenSaver && !p.hidesOnDeactivate, "screen-saver level (v34, as the lock bar), stays when the app is not active")
+        check(!p.canHide, "v34: shown even while the app is hidden (launched hidden at login)")
         let q = BlobPanel.make(frame: NSRect(x: 0, y: 0, width: 10, height: 10), interactive: false, title: "pin2")
         check(q.ignoresMouseEvents && !p.ignoresMouseEvents, "a non-sticky body lets the mouse through; only an interactive one takes it")
 
