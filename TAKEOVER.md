@@ -29,7 +29,7 @@ another Mac. Nothing starts by itself: the star brings it back at login only if 
 - 31.10.2026: done, built v4 31.10.2026: TOP on the first row between the gap and PERMISSIONS/✕, green = the window floats above every other; it uses the app's own setting onTop in ~/.mantra_macro/settings.json (already there and applied at launch), so KEEP ON TOP in WINDOW AND FOLDER went (the same switch twice), and QUIT at the bottom went (swift-apps.md No QUIT; OFF quits, now after answering the press). Every word carries an Accessibility identifier (on, off, top, close, …). Checked at the minimum width 380 by a window capture (nothing cut or overlapping) and TOP pressed through AX twice (window layer 3, then 0). Relaunched: no REC/PLAY note on screen, v3 quit through its Quit menu item (AX), v4 opened with --login, window closed again
 - 31.10.2026: v5 built and installed (pid 95894 → 69629): the inbox (~/.mantra_macro/inbox, app/Inbox.swift) and tools/macro (linked as ~/.local/bin/macro); tested: a MouseGetPos/FileAppend script answered ok, a broken line answered with its error and line; first real use: Space in DaVinci Resolve. Claude Code uses it instead of Hammerspoon from now on.
 - 31.10.2026: v6 built and installed (pid 69629 → 84916): MenuSelect (Accessibility, "…" = "...") and WinGetPos (CGWindowList); 56 language checks pass; used at once in Resolve (Fairlight > Presets Library, the Voice Training dialogs).
-- 31.10.2026: v7 built (universal, lipo arm64 + x86_64), installed, relaunched (pid 84916 → 42781): menu-bar icon (seen in the menu bar via System Events), RELEASES → mantramacrorecorder.pages.dev; 56 language checks pass. DMG 1.16 MB (mounted, signature valid, both architectures). Site written in site/public; the first deploy waits for Marko's yes (the permission check stopped the publish). Star row removed.
+- 31.10.2026: v7 built (universal, lipo arm64 + x86_64), installed, relaunched (pid 84916 → 42781): menu-bar icon (seen in the menu bar via System Events), RELEASES → macrorecorder.markobosko.org; 56 language checks pass. DMG 1.16 MB (mounted, signature valid, both architectures). Site written in site/public; the first deploy waits for Marko's yes (the permission check stopped the publish). Star row removed.
 - 1.11.2026: v8 built (universal), installed, relaunched (pid 15997 → 55219 after the test builds): RECALIBRATE. A named
   recording stores the view of each window clicked in (`~/.mantra_macro/refs/<name>/`); RECAL / `macro recalibrate` /
   `Recalibrate "name"` moves every literal click to where the window is now, checked by picture; AUTO RECALIBRATE does
@@ -41,8 +41,8 @@ another Mac. Nothing starts by itself: the star brings it back at login only if 
 
 ## Publishing: the download button always gives the newest version (1.11.2026)
 
-MANTRA_MANIFEST modules/download-always-latest.md. The button on https://mantramacrorecorder.pages.dev links one address that never
-changes: **https://mantramacrorecorder.pages.dev/download/MacroRecorder.dmg**. Nobody edits the page for a new version.
+MANTRA_MANIFEST modules/download-always-latest.md. The button on https://macrorecorder.markobosko.org links one address that never
+changes: **https://macrorecorder.markobosko.org/download/MacroRecorder.dmg**. Nobody edits the page for a new version.
 
 - `./build.sh` builds, signs, installs, then publishes by itself: `tools/make_dmg.sh` (build/MantraMacroRecorder-<V>.dmg) and
   `tools/deploy_site.sh`. `./build.sh --no-publish` builds and installs only.
@@ -53,7 +53,7 @@ changes: **https://mantramacrorecorder.pages.dev/download/MacroRecorder.dmg**. N
   `<span id="app-size">` of index.html, runs the SEO kit with `--download download/MacroRecorder.dmg`, checks no versioned
   name is left on the page, and deploys with wrangler. To publish the current version again without building:
   `tools/deploy_site.sh` (the DMG in build/ must exist).
-- The check after a release: `curl -sI https://mantramacrorecorder.pages.dev/download/MacroRecorder.dmg` answers 200 and the page shows
+- The check after a release: `curl -sI https://macrorecorder.markobosko.org/download/MacroRecorder.dmg` answers 200 and the page shows
   the new version.
 - 1.11.2026: v8 put behind the fixed address, live checked: 200, the same bytes as build/MantraMacroRecorder-8.dmg (1366077), MantraMacroRecorder-8.dmg → 301, the page says Version 8.
 
@@ -74,7 +74,7 @@ macro, which opens iTerm with a command instead of typing into it. Published v9 
 - v12 (2.11.2026, built then, committed 3.11.2026): `macro ax-focus-end "<app>" [role] [n]` focuses the n-th control of a
   role with the cursor at the end (for "he only pastes the key").
 - v13: `capture-window`, `capture-screen`, `capture-rect` (app/Capture.swift, Inbox.swift, tools/macro). Every session
-  captures through these (MANTRA_MANIFEST macro-recorder.md, capture section). Published to mantramacrorecorder.pages.dev.
+  captures through these (MANTRA_MANIFEST macro-recorder.md, capture section). Published to macrorecorder.markobosko.org.
 - Next if needed: capture a window's region only; a short frame burst (N frames, bounded) for a moving window.
 
 ## 3.11.2026 close, v14–v16
@@ -82,7 +82,7 @@ macro, which opens iTerm with a command instead of typing into it. Published v9 
   `trigger: <name> | <key> | on|off`; CLI `macro trigger`. First one: "F1 Claude dictation" on F1 (on).
 - v15: Overlay writes beside the status item (dot + text), no panel; spinner = "…".
 - v16: AXClick "App", "label" (AX.center + a real click, pointer restored). build.sh restarts the app (old/new pid).
-- Site mantramacrorecorder.pages.dev deployed by build.sh (v16 dmg); release v16 Latest.
+- Site macrorecorder.markobosko.org deployed by build.sh (v16 dmg); release v16 Latest.
 
 ## 8.11.2026, v18
 - The top of the window (Marko: "drop-down menu with all the macros ... load, unload, edit, shortcut key ... only use F keys ... also none"): section MACRO under the first row: one drop-down with every macro (its key and "(unloaded)" beside the name), then LOAD (in the player, its key plays it; green while loaded), UNLOAD (out of the player, its key does nothing; the key is kept for the next LOAD), EDIT, and KEY: NONE / F1 … F12. The key lives in settings.json "triggers", never in the script (Engine.loadForTop / unload / setFKey; a recording must be EDITed into a script once before it can have a key).

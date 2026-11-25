@@ -82,7 +82,7 @@ through Accessibility) and `WinGetPos` (a window's position and size, so clicks 
 Marko: *"Macro Recorder should have a website. Let's try to get some donations going ... make a nice installation file.
 Then let people use it. It is not part of the Start menu anymore. It is now released as an independent release."*
 
-- **Website:** https://mantramacrorecorder.pages.dev (`site/public`, deployed by `tools/deploy_site.sh`): what it does,
+- **Website:** https://macrorecorder.markobosko.org (`site/public`, deployed by `tools/deploy_site.sh`): what it does,
   the download with its counter (`data-dl-app="macro"`), install steps (Open Anyway: it is signed "Mantra Apps", not
   notarized), the keys, privacy, the donation bowl (Revolut), the visit counter, the Speechify line.
 - **Installer:** `tools/make_dmg.sh` → `build/MantraMacroRecorder-<v>.dmg`: the app (Apple Silicon + Intel), a shortcut to
