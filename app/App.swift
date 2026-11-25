@@ -24,6 +24,9 @@
 // while paused, PAUSED in orange in the menu bar; POST :8829/pause /resume, GET /pause; `macro pause|resume|pause-status`.
 // And the updater (Updater.swift, MANTRA_MANIFEST kits/mac-updater): it asks to update at start.
 // v33 (22.11.2026): quitting is refused while the input lock is held; the blob's ✕ and sticky body answer Accessibility presses.
+// v34 (25.11.2026): the input guard as a LEASE (4 s idle, 60 s cap renewed once, 90 s watchdog, holder gone = lifted, queue),
+// the bar always on screen (canHide false, screen-saver level, checked every second), ⌃⌥⌘Esc and POST /release-all, his
+// app = where his hands last were, keys after an app switch to the clipboard (Lock.swift, Guard.swift).
 // v31 (19.11.2026): the save-dialog workflow uses the existing capture, Accessibility and OCR tools; file-rename safely
 // renames one regular file in place, preserves its extension and refuses to overwrite a destination.
 // v32 (22.11.2026, Marko: "the text blob which needs to pop up and if something needs to be said to me while I'm working on
@@ -33,7 +36,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 33
+let VERSION = 34
 let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
@@ -54,6 +57,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             BlobCenter.shared.shot(CommandLine.arguments[i + 2], kind: k, to: CommandLine.arguments[i + 1]); return
         }
         mainMenu()
+        // v34: a lock left by a run that ended while it was held is cleared and written down; his hands' app is followed;
+        // the bars are rebuilt when the displays change. Launched hidden at login (LSLaunchedHidden) the app is unhidden
+        // at once: a hidden app's windows never reach the screen (that is why the v33 bar no longer appeared).
+        InputLock.shared.startupCheck()
+        HandTracker.shared.start()
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
+            InputLock.shared.screensChanged()
+        }
+        if NSApp.isHidden { NSApp.unhideWithoutActivation() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { if NSApp.isHidden { NSApp.unhideWithoutActivation() } }
         BlobCenter.shared.start()
         e.start()
         e.openWindow = { [weak self] in self?.toggleWindow() }

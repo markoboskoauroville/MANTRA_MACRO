@@ -1,0 +1,7 @@
+#!/bin/sh
+# guarded <command> [args]: the one-word wrapper for `guard run -- <command>` (v34, 25.11.2026). The command runs while
+# Macro Recorder's input guard is held (Marko's keys and clicks kept and given back afterwards); its exit code is passed
+# through; 130 = aborted (Marko took over), 3 = no guard (the command did NOT run), 4 = still queued behind another holder.
+# GUARD_WHAT="..." names it on the bar.
+if [ -n "$GUARD_WHAT" ]; then exec guard run --what "$GUARD_WHAT" -- "$@"; fi
+exec guard run -- "$@"

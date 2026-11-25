@@ -875,7 +875,7 @@ final class Overlay {
     init() {
         for p in [panel, spin] {
             p.level = .statusBar; p.isOpaque = false; p.backgroundColor = .clear; p.ignoresMouseEvents = true
-            p.collectionBehavior = [.canJoinAllSpaces, .stationary]; p.hasShadow = false
+            p.collectionBehavior = [.canJoinAllSpaces, .stationary]; p.hasShadow = false; p.canHide = false     // v34
         }
         let v = NSView(); v.wantsLayer = true
         v.layer?.backgroundColor = NSColor(srgbRed: 0.04, green: 0.05, blue: 0.06, alpha: 0.92).cgColor

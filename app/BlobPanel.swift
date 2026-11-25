@@ -8,7 +8,8 @@ final class BlobPanel: NSPanel {
     static func make(frame: NSRect, interactive: Bool, title: String) -> BlobPanel {
         let p = BlobPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.title = title
-        p.level = .statusBar                                   // the same level as the lock bar: over full-screen apps too
+        p.level = .screenSaver                                 // v34: the same level as the lock bar (InputLock.LEVEL): over full-screen apps too
+        p.canHide = false                                      // v34: shown even when the app is hidden (launched hidden at login)
         p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = false
         p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         p.hidesOnDeactivate = false

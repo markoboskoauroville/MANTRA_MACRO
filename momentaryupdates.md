@@ -1,5 +1,12 @@
 # Macro Recorder: momentary updates
 
+## 25.11.2026: the input guard, taking over and giving back
+> "Please, you need to work on that. You need to work on screen taking over and giving it back. Again, the same issue. We are going backwards. We are downgrading instead of upgrading. I have a system already in place which just shows that you took over and that I can take over. And now it's not appearing anymore. And also this system is so buggy. I see you have finished the task and I still cannot use my computer for a long time. Why? Can you please improve this system of taking over so it works as it's supposed to work?"
+
+> "you are forgetting to block my inputs while you are working and bringing back when you are not working so we can share the same computer." (Marko, 25.11.2026)
+
+**Status:** in progress 25.11.2026.
+
 ## 30.10.2026: from Lua to Swift
 > "please convert the app open on the MacBook Display Recorder to a Swift app"
 

@@ -128,7 +128,7 @@ enum HoverCard {
             let p = panel ?? NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             p.titleVisibility = .hidden; p.isFloatingPanel = true; p.level = .statusBar + 1; p.hidesOnDeactivate = false
             p.backgroundColor = .clear; p.isOpaque = false; p.hasShadow = true; p.ignoresMouseEvents = true
-            p.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            p.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]; p.canHide = false     // v34
             p.contentView = view
             let size = view.cardSize
             var x = bf.midX - size.width / 2
