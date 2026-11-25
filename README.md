@@ -360,3 +360,27 @@ working in the background." A session or worker has something short to say; it a
 - Rules in tests/BlobTests.swift (workflow step): duration, wrap and cut, stack, replace and clear, the done gate, placement on the
   portrait BenQ 1440x2560 + MacBook layout, and the pin that the blob window can never become key or main.
 - Not for questions: a question that needs him is asked in the chat (and by voice when the voice is on). A blob needs no answer.
+
+## The input guard as a lease (v34, 25.11.2026)
+Marko, 25.11.2026: "I have a system already in place which just shows that you took over and that I can take over. And now it's
+not appearing anymore. ... I see you have finished the task and I still cannot use my computer for a long time." The guard
+(Lock.swift + Guard.swift, `guard`, MANTRA_MANIFEST modules/input-guard.md) shares the Mac by bursts:
+
+    guard run [--what X] -- <cmd>        one command (or: guarded <cmd>); exit 130 = aborted by Marko, 3 = no guard, 4 = queued too long
+    guard begin "<what>" ... guard end   a sequence; never held while thinking
+    guard ping | release-all | status | last | log [N]
+    POST :8829/lock {owner, pid, text, seconds, idle, place}   /ping {owner}   /unlock {owner}   /release-all   GET /status /last
+
+- Lease: every guarded step (lock again, ping, beat, a macro step) renews it; 4 s without one = his again (place and keys back);
+  60 s at most, renewed once while busy, 90 s the watchdog. Every process that asked for it gone = lifted within a quarter second.
+  Holders queue first come first served. Talk Mode's Space Mode (beat) keeps its own heartbeat rule.
+- The bar: bottom of every screen, 42 pt, screen-saver level (over full-screen apps), never hidden with the app (canHide false),
+  checked on screen every second, rebuilt when the displays change: CLAUDE · yours in N s unless it acts · m:ss max · what ·
+  TAKE OVER (260x32). TAKE OVER and GIVE THE MAC BACK also answer an Accessibility press.
+- His place: the app his hands were last in (hardware keys and clicks, or a remote-control app's; not an agent's posted events),
+  its window, field and caret; checked in front before and after the replay. Keys after ⌘⇥ / ⌘` / ⌘Space / ⌃←→ / ⌘H Q W M go
+  to the clipboard; ⌘ shortcuts other than A Z X C V ⌫ ⌦ arrows are never replayed. A holder that retakes within 2 minutes
+  gets its own app and field front again.
+- Failsafes: Escape held 1 s (TAKE OVER), ⌃⌥⌘Esc (everything released), `guard release-all` (answered off the main thread;
+  kills and restarts the app if it does not answer in 2 s), the 90 s watchdog, a stale-lock marker cleared and logged at start.
+- Tests: `python3 tests/test_lease.py all` (a few seconds each, simulated holders, AX presses, keys only into a new TextEdit doc).

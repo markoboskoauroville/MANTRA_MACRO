@@ -5,7 +5,7 @@
 
 > "you are forgetting to block my inputs while you are working and bringing back when you are not working so we can share the same computer." (Marko, 25.11.2026)
 
-**Status:** in progress 25.11.2026.
+**Status:** done 25.11.2026, v34 built by GitHub (run 45602127540, green), release v34 Latest, installed, signed Mantra Apps, relaunched. The bar was hidden with the app (launched hidden at login); now always on every screen. The guard is a lease: 4 s idle and the Mac is his again, 90 s at most, holder gone = free at once. tests/test_lease.py: 30 checks pass.
 
 ## 30.10.2026: from Lua to Swift
 > "please convert the app open on the MacBook Display Recorder to a Swift app"

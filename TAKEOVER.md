@@ -120,3 +120,22 @@ GET /blobs in LockServer), `--blob-shot` in App.swift, `macro blob` in tools/mac
 Install: `gh release download v32`, unzip into /Applications, `codesign --force -s "Mantra Apps"`, same bundle id
 community.auroville.macrorecorder, so no permission is asked again. Not proven: how the blob reads over a full-screen app on each screen.
 v33 (22.11.2026): quit refused while the input lock is held (`applicationShouldTerminate`, covers menu, OFF, Apple event, ax-quit); blob ✕ ("Close blob: <text>") and sticky blobs answer `macro ax-press`; Queen's skill tell-marko-on-screen (groq_ai_studio) runs `macro blob`.
+
+## v34 (25.11.2026): the input guard as a lease, the bar always seen
+Asked word for word in momentaryupdates.md (25.11.2026). Root causes with evidence: (1) the bar existed but was never on screen
+because the app was hidden (launched hidden at login, AXHidden true): CGWindowList listed both bars without kCGWindowIsOnscreen,
+screenshots of both displays showed no bar; unhiding the live process through AX made a blob appear at once. (2) workers held
+`guard begin --seconds 180` across their thinking (guard_log: 257 s and 197 s held for a few seconds of clicks), and a worker
+that ends without `guard end` inside a long-lived Claude process is never "gone". (3) keys replayed into Chrome: his app was taken
+as the app in front at lock time, which the worker had already changed.
+Changes: Lock.swift (lease 4 s idle / 60 s cap renewed once / 90 s watchdog, ownerPids, FIFO queue, POST /ping, POST
+/release-all off the main thread, ⌃⌥⌘Esc, stale marker ~/.mantra_macro/lock_held, bar canHide false + screen-saver level +
+on-screen check every second + rebuild on display change, bigger bar, AX press on TAKE OVER and the blob, status: lease, queue,
+bar, front_now), Guard.swift (HandTracker: his last real touch; keys after an app switch to the clipboard; verified give-back;
+holder re-front within 2 minutes; logLine), App.swift (startupCheck, HandTracker, screen observer, unhide at start), canHide false
+on BlobPanel, Overlay, HoverCard. tools/guard.py (ping, release-all, run(), clear messages and exit codes), tools/guarded,
+tests/test_lease.py. Docs: MANTRA_MANIFEST modules/input-guard.md, skill macro-skills.
+Install: `gh release download v34`, quit the old app with `macro ax-quit` after `/status` says lock off, unzip into /Applications,
+`codesign --force --deep -s "Mantra Apps"`, `open -g -a "Macro Recorder (Mantra)" --args --login` (as at login: no window, no
+permission prompt; settings, macros and the PAUSE state live in ~/.mantra_macro and come back by themselves).
+

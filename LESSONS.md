@@ -295,3 +295,21 @@ v32 had none, v33 refuses to quit while the input lock is held or the guard is g
 checking `/status` lock off. The rule "AX quit, not osascript" is kept for the swap; the real protection is the guard. (4) Queen: skill tell-marko-on-screen in
 groq_ai_studio (queen_skills + qwen_app/queen_python_skills/tell_marko.py), tested by `queen "tell Marko on screen that ..."`. Not tried: the blob over Ableton's or
 Chrome's own full-screen Spaces (only the throwaway window).
+
+## v34 (25.11.2026): the bar nobody saw, and the lock held across thinking
+1. A hidden app shows NO windows, not even a status-level, all-Spaces, non-activating panel. Macro Recorder had been launched
+   hidden at login (lsappinfo: LSLaunchedHidden=true; AX: AXHidden=true, while NSRunningApplication.isHidden said false), so the
+   lock bar and every blob were created, listed by CGWindowList, and never on screen (kCGWindowIsOnscreen missing). Setting
+   AXHidden false on the live process made the next blob appear at once. Fix: canHide = false on every overlay, the app unhides
+   itself at start, and the bar is proven on screen (CGWindowList per window) every second. "The window exists" is not "Marko
+   sees it": check kCGWindowIsOnscreen and a screenshot.
+2. NSRunningApplication.isHidden can lie for another process; ask its AX application element (AXHidden).
+3. A lock with a timer is held for as long as its holder thinks: "Gmail draft to Slate · 257 s held" for seconds of clicks.
+   An agent cannot be trusted to release; the lock must lease: renewed by real steps, dropped after 4 s idle, capped at 90 s.
+4. "The front app when the lock comes on" is not his app: the worker had already fronted Chrome, and his typing (after ⌘⇥ x3)
+   was replayed into the Gmail page. Take his app from his own last key or click, and never replay what he typed after he tried
+   to switch apps.
+5. Two pushes in a row: the slower run finishes last and its `--clobber` upload wins. Re-run the workflow on the head commit
+   (or wait) before installing, and check the asset's time against the run that built the head.
+6. A GitHub test that compiles one file alone (BlobPanel.swift in run_blob_tests.sh) breaks when that file names a type from
+   another file: keep such files self-contained.
