@@ -42,12 +42,17 @@ private final class ClickView: NSView {
     var onClick: (() -> Void)?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseUp(with event: NSEvent) { if bounds.contains(convert(event.locationInWindow, from: nil)) { onClick?() } }
+    // v34: TAKE OVER answers an Accessibility press too (VoiceOver, and the tests press it without a synthetic click)
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityPerformPress() -> Bool { DispatchQueue.main.async { self.onClick?() }; return true }
 }
 /// The blob: a click gives back. No dragging: it stays where TAKE OVER was.
 private final class BlobView: NSView {
     var onClick: (() -> Void)?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseUp(with e: NSEvent) { if bounds.contains(convert(e.locationInWindow, from: nil)) { onClick?() } }
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityPerformPress() -> Bool { DispatchQueue.main.async { self.onClick?() }; return true }    // v34
 }
 /// One line of text centred on its cap height (not its line box), left aligned or centred in x, tail-truncated.
 private final class CapText: NSView {
@@ -665,7 +670,7 @@ final class InputLock {
         let t = CapText(frame: NSRect(origin: .zero, size: r.size), font: .boldSystemFont(ofSize: 16), color: .black, centred: true)
         t.text = words.replacingOccurrences(of: "\n", with: " "); v.addSubview(t)
         v.onClick = { [weak self] in self?.closeBlob(); tap() }
-        v.setAccessibilityLabel(t.text); v.setAccessibilityRole(.button)
+        v.setAccessibilityLabel(t.text); v.setAccessibilityRole(.button); v.setAccessibilityIdentifier("giveback")
         p.contentView = v
         if NSApp.isHidden { NSApp.unhideWithoutActivation() }
         p.orderFrontRegardless()
