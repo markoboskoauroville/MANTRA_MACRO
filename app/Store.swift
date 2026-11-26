@@ -103,6 +103,7 @@ func keyLabel(_ b: Binding?) -> String {
 // MARK: the settings, read and written as the Lua did (keys it does not know are kept)
 
 struct Zone: Equatable { var x, y, w, h: Double }
+struct VisualTrigger: Equatable { var image: String; var on: Bool }
 
 final class Settings {
     var raw: [String: Any] = [:]
@@ -112,6 +113,7 @@ final class Settings {
     var keys = DEFAULT_KEYS, loadMods = DEFAULT_LOAD, runMods = DEFAULT_RUN
     var slots: [String: String] = [:]
     var zones: [String: Zone] = [:]
+    var visualTriggers: [String: VisualTrigger] = [:]
     var current: String?
     // v14 (Marko, 3.11.2026: "A switcher on our application is just enabling or disabling that macro remotely inside the
     // macro recorder"): a macro can have its own key (F1, or a chord) that plays it; each one on or off, from the inbox
@@ -146,6 +148,13 @@ final class Settings {
                 triggers[n] = Trigger(mods: cleanMods(v["mods"] as? [String] ?? []), key: key, on: v["on"] as? Bool ?? true)
             }
         }
+        visualTriggers = [:]
+        if let t = j["visualTriggers"] as? [String: Any] {
+            for (n, value) in t {
+                guard let value = value as? [String: Any], let image = value["image"] as? String, !image.isEmpty else { continue }
+                visualTriggers[n] = VisualTrigger(image: image, on: value["on"] as? Bool ?? true)
+            }
+        }
         keys = DEFAULT_KEYS
         if let k = j["keys"] as? [String: Any] {
             for (id, v) in k {
@@ -169,6 +178,7 @@ final class Settings {
         for (id, b) in keys { k[id] = ["mods": b.mods, "key": b.key] }
         j["keys"] = k
         j["triggers"] = triggers.mapValues { ["mods": $0.mods, "key": $0.key, "on": $0.on] as [String: Any] }
+        j["visualTriggers"] = visualTriggers.mapValues { ["image": $0.image, "on": $0.on] as [String: Any] }
         if j["current"] is NSNull { j.removeValue(forKey: "current") }
         if let d = try? JSONSerialization.data(withJSONObject: j, options: [.prettyPrinted, .sortedKeys]) {
             try? d.write(to: URL(fileURLWithPath: SET_FILE), options: .atomic)

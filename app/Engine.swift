@@ -17,6 +17,7 @@ final class Engine: ObservableObject {
     let settings = Settings()
     @Published var recording = false
     @Published var playing = false
+    @Published var activeRuns: [RunningMacro] = []
     @Published var current: String?            // the macro in the player; nil = the plain last recording
     @Published var note = ""                   // one line for the window and the status line
     @Published var lastError: (name: String, line: Int?, msg: String)?
@@ -26,6 +27,26 @@ final class Engine: ObservableObject {
     var chosen = ""                            // v18: the macro shown in the window's drop-down (outlives .id(tick))
     var pending: String?                       // the name a New Macro recording is saved under
     var playName = ""
+    struct RunningMacro: Identifiable {
+        let id: Int
+        let name: String
+        let started: Date
+        let usesInput: Bool
+        let caller: Caller
+        var state: String
+    }
+    private struct RunJob {
+        let host: MacHost
+        let usesInput: Bool
+        let overrides: Int
+    }
+    private struct QueuedRun {
+        let id: Int
+        let text: String
+        let name: String
+        let by: Caller
+        let done: ((Bool, String?, Int?) -> Void)?
+    }
 
     // MARK: start and stop (ON and OFF)
 
@@ -37,6 +58,7 @@ final class Engine: ObservableObject {
         PauseGate.shared.load()                  // v29: paused before a restart stays paused
         Inbox.shared.start()
         LockServer.shared.start()
+        VisualTriggerWatch.shared.start()
     }
     func stop() {
         if recording { stopRecording() }
@@ -45,6 +67,7 @@ final class Engine: ObservableObject {
         Hotkeys.shared.unbindAll()
         Inbox.shared.stop()
         LockServer.shared.stop(); InputLock.shared.off()
+        VisualTriggerWatch.shared.stop()
         Overlay.shared.off(); Overlay.shared.spinKill()
     }
     func changed() { DispatchQueue.main.async { self.tick += 1 } }
@@ -244,6 +267,7 @@ final class Engine: ObservableObject {
         Slots.rename(&settings.slots, old, n)
         Refs.rename(old, n)
         if current == old { current = n; settings.current = n }
+        if let trigger = settings.visualTriggers.removeValue(forKey: old) { settings.visualTriggers[n] = trigger }
         settings.save(); say("renamed to " + n); changed()
     }
     func trash(_ n: String) {
@@ -251,6 +275,7 @@ final class Engine: ObservableObject {
         Refs.trash(n)
         Slots.remove(&settings.slots, n)
         if current == n { current = nil; settings.current = nil; text = nil }
+        settings.visualTriggers[n] = nil
         settings.save(); say(n + " moved to the trash folder", GREYC, 1.6); changed()
     }
     func slotsChanged() { settings.save(); changed() }
@@ -354,8 +379,10 @@ final class Engine: ObservableObject {
 
     // MARK: playing
 
-    let host = MacHost()
+    var host = MacHost()
     var runId = 0
+    private var runJobs: [Int: RunJob] = [:]
+    private var queuedRuns: [QueuedRun] = []
 
     // v24: every run takes the input lock for its length (Lock.swift), whoever started it; `by` says who the bar names
     var runHoldsLock = false
@@ -375,46 +402,92 @@ final class Engine: ObservableObject {
         return (s >= 3 ? s : nil, false)
     }
     func stopPlayingByOverride() {
-        host.stopped = true; playing = false
+        for (_, job) in runJobs { job.host.stopped = true }
         Overlay.shared.spinKill(); Overlay.shared.off(); tint("")
         releaseRunLock()
     }
-    func runScript(_ t: String, _ name: String, by: Caller = .macro, done: ((Bool, String?, Int?) -> Void)? = nil) {
+    static func usesInput(_ text: String) -> Bool {
+        let commands = #"(Click|MouseClick|MouseMove|MouseClickDrag|Send|SendInput|SendEvent|SendPlay|SendText|AXClick|WinActivate|WinWaitActive|MenuSelect|WinMove|WinSnap|WinMinimize|WinMaximize|WinRestore|WinMoveTop|WinMoveBottom|ClickImage|WaitImage|ClickText|WaitText|KeyWait|BlockInput)"#
+        return text.range(of: "(?im)^\\s*(?:" + commands + ")\\b", options: .regularExpression) != nil
+    }
+
+    @discardableResult
+    func runScript(_ t: String, _ name: String, by: Caller = .macro, done: ((Bool, String?, Int?) -> Void)? = nil) -> Int? {
         // v29: while paused nothing new starts (the inbox keeps its files; a key, a slot or PLAY is refused here)
         if PauseGate.shared.paused {
             let why = "paused: Macro Recorder is paused, nothing starts until RESUME (macro resume)"
-            say(why, ORANGEC, 3); done?(false, why, nil); return
+            say(why, ORANGEC, 3); done?(false, why, nil); return nil
         }
-        if playing { stopPlaying() }
-        releaseRunLock()
+        let usesInput = Self.usesInput(t)
+        if usesInput, activeRuns.contains(where: { $0.usesInput && $0.state == "running" }) {
+            runId += 1
+            let id = runId
+            queuedRuns.append(QueuedRun(id: id, text: t, name: name, by: by, done: done))
+            activeRuns.append(RunningMacro(id: id, name: name, started: Date(), usesInput: true, caller: by, state: "queued"))
+            say("queued \(name): it will use the keyboard/mouse after the current macro", GREYC, 2)
+            changed()
+            return id
+        }
+        return launchScript(t, name, usesInput: usesInput, by: by, done: done, id: nil)
+    }
+
+    @discardableResult
+    private func launchScript(_ t: String, _ name: String, usesInput: Bool, by: Caller,
+                              done: ((Bool, String?, Int?) -> Void)?, id: Int?) -> Int? {
         switch Script.parse(t) {
         case .failure(let e):
+            if let id { activeRuns.removeAll { $0.id == id } }
             lastError = (name, e.line, e.text); say(e.text, GREYC, 4); done?(false, e.text, e.line)
+            return nil
         case .success(let prog):
             let est = Engine.estimateSeconds(t)
             let hard = est.secs.map { est.explicit ? $0 + 30 : $0 * 2 + 30 } ?? 600
-            if let why = InputLock.shared.runBegin(name: name, by: by, seconds: est.secs, hard: min(600, hard)) {
-                say(why, GREYC, 4); done?(false, why, nil); return
+            if usesInput, let why = InputLock.shared.runBegin(name: name, by: by, seconds: est.secs, hard: min(600, hard)) {
+                if let id { activeRuns.removeAll { $0.id == id } }
+                say(why, GREYC, 4); done?(false, why, nil); return nil
             }
-            runHoldsLock = true
-            InputLock.shared.setLabel(name)
+            let runner = MacHost()
+            host = runner
             let ov0 = InputLock.shared.overrides
-            runId += 1
-            let id = runId
-            playing = true; lastError = nil; playName = name
-            host.stopped = false; host.lastClickAt = 0
-            host.speed = settings.speed > 0 ? settings.speed : 1; host.clickDelay = settings.clickDelay
-            Overlay.shared.show("PLAY  " + name, GREENC); tint("green")
-            let speed = host.speed
+            if id == nil { runId += 1 }
+            let id = id ?? runId
+            runJobs[id] = RunJob(host: runner, usesInput: usesInput, overrides: ov0)
+            if let i = activeRuns.firstIndex(where: { $0.id == id }) {
+                activeRuns[i].state = "running"
+            } else {
+                activeRuns.append(RunningMacro(id: id, name: name, started: Date(), usesInput: usesInput, caller: by, state: "running"))
+            }
+            playing = true
+            lastError = nil
+            playName = name
+            runner.stopped = false
+            runner.lastClickAt = 0
+            runner.speed = settings.speed > 0 ? settings.speed : 1
+            runner.clickDelay = settings.clickDelay
+            if usesInput { runHoldsLock = true; InputLock.shared.setLabel(name) }
+            Overlay.shared.show(activeRuns.count == 1 ? "PLAY  " + name : "PLAY  \(activeRuns.count) macros", GREENC)
+            tint("green")
+            let speed = runner.speed
             Thread.detachNewThread {
-                let r = Script.run(prog, host: self.host, speed: speed)
+                let r = Script.run(prog, host: runner, speed: speed)
                 DispatchQueue.main.async {
-                    guard self.runId == id else { return }
-                    let stopped = self.host.stopped
-                    self.stopPlaying()
-                    if InputLock.shared.overrides != ov0 {      // v24: Marko pressed TAKE OVER during this run
+                    guard let job = self.runJobs.removeValue(forKey: id) else { return }
+                    let stopped = runner.stopped
+                    self.activeRuns.removeAll { $0.id == id }
+                    self.playing = !self.activeRuns.isEmpty
+                    if job.usesInput {
+                        self.releaseRunLock()
+                    }
+                    if self.activeRuns.isEmpty {
+                        Overlay.shared.spinKill(); Overlay.shared.off(); self.tint("")
+                    } else {
+                        Overlay.shared.show("PLAY  \(self.activeRuns.count) macros", GREENC)
+                    }
+                    self.changed()
+                    if job.usesInput && InputLock.shared.overrides != job.overrides {
                         done?(false, "overridden by Marko: he took the Mac back (TAKE OVER); the macro stopped at its next step", r.line)
                         self.say("overridden by Marko", GREYC, 3)
+                        self.cancelQueued("cancelled after TAKE OVER")
                         return
                     }
                     done?(r.ok, r.ok ? nil : (stopped ? "stopped" : (r.message ?? "error")), r.line)
@@ -423,9 +496,28 @@ final class Engine: ObservableObject {
                         self.lastError = (name, r.line, r.message ?? "error")
                         self.say(r.message ?? "error", GREYC, 4)
                     }
+                    self.resumeQueued()
                 }
             }
+            return id
         }
+    }
+
+    func resumeQueued() {
+        guard !PauseGate.shared.paused,
+              !activeRuns.contains(where: { $0.usesInput && $0.state == "running" }),
+              !queuedRuns.isEmpty else { return }
+        let next = queuedRuns.removeFirst()
+        _ = launchScript(next.text, next.name, usesInput: true, by: next.by, done: next.done, id: next.id)
+    }
+
+    private func cancelQueued(_ why: String) {
+        let queued = queuedRuns
+        queuedRuns.removeAll()
+        let ids = Set(queued.map(\.id))
+        activeRuns.removeAll { ids.contains($0.id) }
+        for item in queued { item.done?(false, why, nil) }
+        changed()
     }
     // PLAY: what is in the player, else the last recording
     func play() {
@@ -437,11 +529,49 @@ final class Engine: ObservableObject {
         runScript(s, n)
     }
     func stopPlaying() {
-        host.stopped = true
-        playing = false
+        for (_, job) in runJobs { job.host.stopped = true }
+        cancelQueued("stopped")
         Overlay.shared.spinKill(); Overlay.shared.off(); tint("")
         releaseRunLock()
     }
+    func stopRun(_ id: Int) {
+        if let i = queuedRuns.firstIndex(where: { $0.id == id }) {
+            let job = queuedRuns.remove(at: i)
+            activeRuns.removeAll { $0.id == id }
+            job.done?(false, "removed from the queue", nil)
+            changed()
+            return
+        }
+        runJobs[id]?.host.stopped = true
+    }
+    func stopRunOrAll(_ id: Int?) -> [String: Any] {
+        if let id {
+            let found = runJobs[id] != nil || queuedRuns.contains(where: { $0.id == id })
+            if found { stopRun(id) }
+            return ["ok": found, "id": id]
+        }
+        stopPlaying()
+        return ["ok": true, "stopped": activeRuns.map(\.id)]
+    }
+    func apiRuns() -> [[String: Any]] {
+        let now = Date()
+        return activeRuns.map {
+            ["id": $0.id, "name": $0.name, "started": ISO8601DateFormatter().string(from: $0.started),
+             "elapsed": now.timeIntervalSince($0.started), "usesInput": $0.usesInput,
+             "state": $0.state,
+             "caller": $0.caller == .claude ? "api" : "macro"] as [String: Any]
+        }
+    }
+    @discardableResult
+    func apiRun(_ name: String, script: String? = nil) -> [String: Any] {
+        let text = script ?? Macros.read(name).text
+        guard let text else { return ["ok": false, "error": "no macro called " + name] }
+        if let id = runScript(text, name, by: .claude) {
+            return ["ok": true, "id": id, "name": name, "running": apiRuns()]
+        }
+        return ["ok": false, "error": lastError?.msg ?? "macro did not start", "running": apiRuns()]
+    }
+
     func togglePlay() { playing ? stopPlaying() : play() }
     // the stop key: whatever runs stops; a recording stopped this way is saved
     func stopAll() {
@@ -518,6 +648,61 @@ final class Engine: ObservableObject {
                 }
             }
         }
+    }
+    func setupVisualTrigger(_ macro: String) {
+        guard Macros.exists(macro) else { return say("choose a macro first", GREYC, 2) }
+        snap(macro + " visual trigger") { file in
+            guard let file else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.captureZone("drag the SEARCH AREA for the visual trigger; Esc searches all displays") { region in
+                    if let region {
+                        self.settings.zones[file] = Zone(x: region.minX, y: region.minY, w: region.width, h: region.height)
+                    }
+                    self.settings.visualTriggers[macro] = VisualTrigger(image: file, on: true)
+                    self.settings.save()
+                    VisualTriggerWatch.shared.changed(macro)
+                    self.say("visual trigger armed for \(macro): \(file)", GREENC, 3)
+                    self.changed()
+                }
+            }
+        }
+    }
+    func toggleVisualTrigger(_ macro: String) {
+        guard var trigger = settings.visualTriggers[macro] else { setupVisualTrigger(macro); return }
+        trigger.on.toggle()
+        settings.visualTriggers[macro] = trigger
+        settings.save()
+        VisualTriggerWatch.shared.changed(macro)
+        say(trigger.on ? "visual trigger on: " + macro : "visual trigger off: " + macro, trigger.on ? GREENC : GREYC, 2)
+        changed()
+    }
+    func removeVisualTrigger(_ macro: String) {
+        settings.visualTriggers[macro] = nil
+        settings.save()
+        VisualTriggerWatch.shared.changed(macro)
+        say("visual trigger removed from " + macro, GREYC, 2)
+        changed()
+    }
+    func apiVisualTriggers() -> [[String: Any]] {
+        settings.visualTriggers.map { macro, trigger in
+            var row: [String: Any] = ["macro": macro, "image": trigger.image, "on": trigger.on]
+            if let z = settings.zones[trigger.image] {
+                row["zone"] = ["x": z.x, "y": z.y, "w": z.w, "h": z.h]
+            }
+            return row
+        }.sorted { ($0["macro"] as? String ?? "") < ($1["macro"] as? String ?? "") }
+    }
+    func apiSetVisualTrigger(_ macro: String, image: String, on: Bool, zone: CGRect?) -> [String: Any] {
+        guard Macros.exists(macro) else { return ["ok": false, "error": "no macro called " + macro] }
+        guard !image.isEmpty, has(Pictures.path(image)) else { return ["ok": false, "error": "no picture called " + image] }
+        if let zone {
+            settings.zones[image] = Zone(x: zone.minX, y: zone.minY, w: zone.width, h: zone.height)
+        }
+        settings.visualTriggers[macro] = VisualTrigger(image: image, on: on)
+        settings.save()
+        VisualTriggerWatch.shared.changed(macro)
+        changed()
+        return ["ok": true, "macro": macro, "image": image, "on": on]
     }
     // find it now: look (in its own zone), move the mouse there, say the score
     func findTest(_ file: String) {

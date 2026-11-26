@@ -807,7 +807,10 @@ final class LockServer {
         DispatchQueue.main.sync {
             let L = InputLock.shared
             switch (method, path) {
-            case ("GET", "/status"), ("GET", "/"): out = L.status(); out["app"] = "macrorecorder"; out["version"] = VERSION
+            case ("GET", "/status"), ("GET", "/"):
+                out = L.status(); out["app"] = "macrorecorder"; out["version"] = VERSION
+                out["runs"] = Engine.shared.apiRuns()
+                out["queued"] = Engine.shared.apiRuns().filter { ($0["state"] as? String) == "queued" }.count
             case ("POST", "/lock") where j["owner"] != nil:
                 var op = InputLock.Options()
                 op.passKeys = (j["keys"] as? String) == "pass"
@@ -823,6 +826,33 @@ final class LockServer {
             case ("POST", "/pause"): out = PauseGate.shared.pause(by: j["by"] as? String ?? "api")
             case ("POST", "/resume"): out = PauseGate.shared.resume(by: j["by"] as? String ?? "api")
             case ("GET", "/pause"), ("GET", "/pause-status"): out = PauseGate.shared.status()
+            case ("GET", "/runs"):
+                out = ["ok": true, "running": Engine.shared.apiRuns(), "count": Engine.shared.activeRuns.count]
+            case ("POST", "/run"):
+                let name = j["name"] as? String ?? j["script_name"] as? String ?? "API macro"
+                out = Engine.shared.apiRun(name, script: j["script"] as? String)
+                code = (out["ok"] as? Bool) == true ? 200 : 409
+            case ("POST", "/stop"):
+                out = Engine.shared.stopRunOrAll((j["id"] as? NSNumber)?.intValue)
+                code = (out["ok"] as? Bool) == true ? 200 : 409
+            case ("GET", "/visual-triggers"):
+                out = ["ok": true, "triggers": Engine.shared.apiVisualTriggers()]
+            case ("POST", "/visual-trigger"):
+                let numbers = (j["zone"] as? [String: Any]) ?? [:]
+                var zone: CGRect?
+                if let x = (numbers["x"] as? NSNumber)?.doubleValue,
+                   let y = (numbers["y"] as? NSNumber)?.doubleValue,
+                   let w = (numbers["w"] as? NSNumber)?.doubleValue,
+                   let h = (numbers["h"] as? NSNumber)?.doubleValue, w > 0, h > 0 {
+                    zone = CGRect(x: x, y: y, width: w, height: h)
+                }
+                out = Engine.shared.apiSetVisualTrigger(
+                    j["macro"] as? String ?? "",
+                    image: j["image"] as? String ?? "",
+                    on: j["on"] as? Bool ?? true,
+                    zone: zone
+                )
+                code = (out["ok"] as? Bool) == true ? 200 : 409
             case ("POST", "/beat"): out = L.beat(owner: j["owner"] as? String ?? "")
             case ("POST", "/ping"): out = L.ping(owner: j["owner"] as? String ?? "")      // v34: the lease renewed
             case ("POST", "/unlock") where j["owner"] != nil:

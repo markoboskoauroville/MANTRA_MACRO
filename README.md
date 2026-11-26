@@ -13,6 +13,17 @@ of their own; the eye is Swift (ScreenCaptureKit and a template match with Accel
 Python and no OpenCV. The Lua files stay in the repository until Marko has played his own macros with
 the Swift app; nothing loads them any more.
 
+## Visual triggers and concurrent runs (v35)
+
+- Select a macro and press **VISUAL TRIGGER**. The first picker captures the button/image; the second captures the
+  search area (Esc watches every display). The trigger can be armed or cleared beside the macro picker.
+- A trigger watches without taking the keyboard or mouse. When its picture first appears, the selected macro runs once;
+  it arms again only after the picture disappears.
+- **RUNNING MACROS** shows every active or queued job with an individual STOP key. Keyboard/mouse jobs are FIFO-queued;
+  background scripts can run together.
+- API: `GET /runs`, `POST /run {"name":"macro"}`, `POST /run {"name":"label","script":"..."}`, and
+  `POST /stop {"id":123}` (or no id for all). Every start receives a stable job id, including queued jobs.
+
 Marko's requests, 4.9.2026 and 5.9.2026: "It records everything I'm doing and repeating.
 Control+Option+Command+R records, P plays." · "Option 1 to 0 loads a stored macro, Control 1 to 0
 runs it; I assign any macro to any slot with check marks and reorder them in the web interface."

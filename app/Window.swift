@@ -64,7 +64,7 @@ struct MainView: View {
         GeometryReader { g in
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
-                    top; chooser; transport; layouts; permissions; slots; macros; pictures; keys; playback; window; foot
+                    top; chooser; transport; runningMacros; layouts; permissions; slots; macros; pictures; keys; playback; window; foot
                 }
                 .frame(width: max(300, g.size.width - 28), alignment: .leading).clipped()
                 .padding(14)
@@ -187,6 +187,24 @@ struct MainView: View {
                 chooserMenu(list, n)
                 chooserButtons(n, loaded)
                 chooserNote(n, loaded)
+                HStack(spacing: 6) {
+                    Word(text: "VISUAL TRIGGER", color: .amber, help: "pick the button image, then drag the screen area to watch") {
+                        e.setupVisualTrigger(n)
+                    }
+                    if let trigger = s.visualTriggers[n] {
+                        Word(text: trigger.on ? "EYE ON" : "EYE OFF", color: trigger.on ? .on : .off,
+                             help: trigger.on ? "disable this visual trigger" : "arm this visual trigger") {
+                            e.toggleVisualTrigger(n)
+                        }
+                        Word(text: "CLEAR", color: .off, help: "remove this visual trigger") { e.removeVisualTrigger(n) }
+                    }
+                }
+                if let trigger = s.visualTriggers[n] {
+                    let zone = s.zones[trigger.image]
+                    Text(trigger.image + (zone.map { " · area \(Int($0.x)),\(Int($0.y)) \(Int($0.w))×\(Int($0.h))" } ?? " · every screen"))
+                        .font(.system(size: 10)).foregroundColor(trigger.on ? .on : .off)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
@@ -227,6 +245,31 @@ struct MainView: View {
             Text("Record new: do the thing, then press the record key to stop. Write new: an empty script opens in the editor. Either lands in the first free slot.")
                 .font(.system(size: 11)).foregroundColor(.off).fixedSize(horizontal: false, vertical: true)
             if !e.note.isEmpty { Text(e.note).font(.system(size: 11, design: .monospaced)).foregroundColor(.off).fixedSize(horizontal: false, vertical: true) }
+        }
+    }
+
+    var runningMacros: some View {
+        Section(title: "RUNNING MACROS", hint: "Keyboard and mouse jobs are queued in order. Background jobs can run together. The API uses POST /run and GET /runs on port 8829.") {
+            if e.activeRuns.isEmpty {
+                Text("Nothing is running or queued.").font(.system(size: 11)).foregroundColor(.off)
+            } else {
+                TimelineView(.periodic(from: .now, by: 1)) { now in
+                    ForEach(e.activeRuns) { run in
+                        let elapsed = max(0, Int(now.date.timeIntervalSince(run.started)))
+                        HStack(spacing: 8) {
+                            Circle().fill(run.state == "queued" ? Color.amber : Color.on).frame(width: 8, height: 8)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(run.name).font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                Text("\(run.state) · \(run.usesInput ? "keyboard/mouse" : "background") · \(elapsed)s")
+                                    .font(.system(size: 10)).foregroundColor(.off)
+                            }
+                            Spacer(minLength: 4)
+                            Word(text: "STOP", color: .rec, ax: "stop-run-\(run.id)") { e.stopRun(run.id) }
+                        }
+                        .id("\(run.id)-\(run.state)")
+                    }
+                }
+            }
         }
     }
 

@@ -60,6 +60,7 @@ final class PauseGate {
         }
         Overlay.shared.render()
         Engine.shared.changed()
+        if !on { Engine.shared.resumeQueued() }
     }
 
     func status() -> [String: Any] {
