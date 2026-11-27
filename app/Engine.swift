@@ -192,7 +192,12 @@ final class Engine: ObservableObject {
         }
         let title = (pending ?? "last recording") + ", recorded " + recorded
         let t = Script.fromEvents(events, keyNames: KeyMap.names,
-                                  header: [title, "Edit freely: Click x, y  ·  Send \"text\"  ·  Sleep ms  ·  ClickImage \"button.png\""])
+                                  header: [title, "Edit freely: Click x, y  ·  Send \"text\"  ·  Sleep ms  ·  ClickImage \"button.png\""],
+                                  recordMousePaths: settings.recordMousePaths,
+                                  minMouseMovement: settings.minMouseMovement,
+                                  mouseSensitivity: settings.mouseSensitivity,
+                                  combineText: settings.combineText,
+                                  minWaitMs: settings.minWaitMs)
         _ = writeText(LAST_AHK, t)
         text = t
         if let p = pending {

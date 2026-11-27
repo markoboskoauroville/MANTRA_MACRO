@@ -36,7 +36,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 35
+let VERSION = 40
 let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
@@ -154,14 +154,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             quit: { DispatchQueue.main.async { NSApp.terminate(nil) } },
                             edit: { EditorWindow.show($0) },
                             docs: { DocsWindow.show() })
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 760), styleMask: [.titled, .closable, .miniaturizable, .resizable],
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720), styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
         window.title = "Macro Recorder (Mantra)"; window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: view)
-        window.minSize = NSSize(width: 380, height: 320)
+        window.minSize = NSSize(width: 1000, height: 480)
         window.backgroundColor = GROUND
-        window.setFrameAutosaveName("MacroRecorder")
-        if !window.setFrameUsingName("MacroRecorder") { window.center() }
+        window.center()
         window.level = e.settings.onTop ? .floating : .normal
     }
 

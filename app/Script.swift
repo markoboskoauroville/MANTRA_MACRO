@@ -861,7 +861,7 @@ enum Script {
 
     static let commands: [(name: String, shape: String, help: String)] = [
         ("Click",          "Click x, y [, \"Right\" | \"Middle\", count]", "Move the mouse to x, y and click there. Click alone clicks where the mouse is."),
-        ("MouseMove",      "MouseMove x, y",                          "Move the mouse to x, y."),
+        ("MouseMove",      "MouseMove x, y [, endX, endY, durationMs [, relative]]", "Move the mouse, optionally interpolating from one point to another over a duration."),
         ("MouseClick",     "MouseClick \"Left\", x, y [, count]",       "Click a button at x, y."),
         ("MouseClickDrag", "MouseClickDrag \"Left\", x1, y1, x2, y2",  "Press at x1, y1, drag to x2, y2, release."),
         ("MouseGetPos",    "MouseGetPos &x, &y",                      "Put the mouse position into x and y."),
@@ -1566,7 +1566,28 @@ enum Script {
             let a = arg
             H["sleep"] = { I, v, line in try I.host.sleep(try toNum(a(v, 0), line, "Sleep") / 1000); return nil }
             H["mousemove"] = { I, v, line in
-                try I.host.mouseMove(try toNum(a(v, 0), line, "MouseMove x"), try toNum(a(v, 1), line, "MouseMove y")); return nil
+                var startX = try toNum(a(v, 0), line, "MouseMove x")
+                var startY = try toNum(a(v, 1), line, "MouseMove y")
+                guard v.count >= 5 else { try I.host.mouseMove(startX, startY); return nil }
+                var endX = try toNum(a(v, 2), line, "MouseMove end x")
+                var endY = try toNum(a(v, 3), line, "MouseMove end y")
+                let milliseconds = max(0, try toNum(a(v, 4), line, "MouseMove duration"))
+                let relativeValue = v.count > 5 ? try toNum(a(v, 5), line, "MouseMove relative") : 0
+                let relative = relativeValue != 0
+                if relative {
+                    let cursor = I.host.mousePos()
+                    startX += Double(cursor.0); startY += Double(cursor.1)
+                    endX += Double(cursor.0); endY += Double(cursor.1)
+                }
+                try I.host.mouseMove(startX, startY)
+                let steps = max(1, Int((milliseconds / 16).rounded(.up)))
+                for step in 1...steps {
+                    try I.host.sleep(milliseconds / 1000 / Double(steps))
+                    let progress = Double(step) / Double(steps)
+                    try I.host.mouseMove(startX + (endX - startX) * progress,
+                                         startY + (endY - startY) * progress)
+                }
+                return nil
             }
             H["click"] = { I, v, line in
                 let o = try clickOptions(v, line)
@@ -1822,7 +1843,9 @@ enum Script {
     private static func r(_ v: Double?) -> Int { Int(((v ?? 0) + 0.5).rounded(.down)) }
 
     // events (as the recorder writes them) -> script text. keyNames maps a key code to its Hammerspoon name.
-    static func fromEvents(_ events: [RecEvent], keyNames: [Int: String], header: [String]) -> String {
+    static func fromEvents(_ events: [RecEvent], keyNames: [Int: String], header: [String],
+                           recordMousePaths: Bool = false, minMouseMovement: Double = 5,
+                           mouseSensitivity: Double = 90, combineText: Bool = true, minWaitMs: Double = 20) -> String {
         enum Piece { case ch(String), raw(String) }
         var lines = header.map { "; " + $0 }
         var lastT = 0.0
@@ -1837,18 +1860,32 @@ enum Script {
         let JOINS = ["return": "{Enter}", "tab": "{Tab}", "delete": "{BS}", "forwarddelete": "{Del}"]
         func gap(_ t: Double) {
             var ms = Int((t - lastT) * 1000 + 0.5)
-            if ms >= 20 {
+            if ms >= max(20, Int(minWaitMs.rounded())) {
                 ms = Int((Double(ms) / 10 + 0.5).rounded(.down)) * 10
                 lines.append("Sleep \(ms)")
             }
             lastT = t
         }
         let n = events.count
+        var lastMove: (x: Double, y: Double)?
         var i = 0
         var pending = Set<Int>()          // up events already used
         while i < n {
             let ev = events[i], kind = ev.kind
-            if pending.contains(i) || kind == "mouseMoved" || kind == "keyUp" {
+            if pending.contains(i) || kind == "keyUp" {
+                i += 1
+            } else if kind == "mouseMoved" {
+                if recordMousePaths {
+                    let point = (x: ev.x ?? 0, y: ev.y ?? 0)
+                    let scale = max(1, 2 - min(100, max(0, mouseSensitivity)) / 100)
+                    let minimum = max(1, minMouseMovement * scale)
+                    let distance = lastMove.map { hypot(point.x - $0.x, point.y - $0.y) } ?? .infinity
+                    if distance >= minimum {
+                        flushText(); gap(ev.t)
+                        lines.append("MouseMove \(r(ev.x)), \(r(ev.y))")
+                        lastMove = point
+                    }
+                }
                 i += 1
             } else if kind == "keyDown" {
                 let name = keyNames[ev.code ?? -1] ?? "vk\(ev.code ?? 0)"
@@ -1870,7 +1907,7 @@ enum Script {
                         }
                         c = .ch(s)
                     }
-                    if textRun != nil && (ev.t - lastT) < 1.5 {
+                    if combineText && textRun != nil && (ev.t - lastT) < 1.5 {
                         textRun!.append(c); lastT = ev.t
                     } else {
                         flushText(); gap(ev.t); textRun = [c]

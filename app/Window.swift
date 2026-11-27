@@ -43,7 +43,7 @@ struct Section<Content: View>: View {
     }
 }
 
-struct MainView: View {
+struct AdvancedView: View {
     @ObservedObject var e = Engine.shared
     var close: () -> Void
     var quit: () -> Void
@@ -157,7 +157,7 @@ struct MainView: View {
     func keyMenu(_ n: String) -> some View {
         let sel = SwiftUI.Binding<String>(get: { fKeyOf(n) }, set: { v in e.setFKey(n, v) })
         return Picker("", selection: sel) {
-            ForEach(MainView.FKEYS, id: \.self) { (k: String) in Text(k.isEmpty ? "NONE" : k.uppercased()).tag(k) }
+            ForEach(AdvancedView.FKEYS, id: \.self) { (k: String) in Text(k.isEmpty ? "NONE" : k.uppercased()).tag(k) }
         }.labelsHidden().pickerStyle(.menu).frame(width: 90).accessibilityIdentifier("macro-key")
     }
     func chooserButtons(_ n: String, _ loaded: Bool) -> some View {

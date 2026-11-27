@@ -110,6 +110,8 @@ final class Settings {
     var speed = 1.0, clickDelay = 0.0, ignoreTravel = false
     var autoSmall = true, onTop = false
     var autoRecal = true                   // v8: a macro whose window moved is recalibrated before it plays
+    var recordMousePaths = false, minMouseMovement = 5.0, mouseSensitivity = 90.0
+    var combineText = true, minWaitMs = 500.0
     var keys = DEFAULT_KEYS, loadMods = DEFAULT_LOAD, runMods = DEFAULT_RUN
     var slots: [String: String] = [:]
     var zones: [String: Zone] = [:]
@@ -131,6 +133,11 @@ final class Settings {
         autoSmall = (j["autoSmall"] as? Bool) ?? true
         onTop = (j["onTop"] as? Bool) ?? false
         autoRecal = (j["autoRecal"] as? Bool) ?? true
+        recordMousePaths = (j["recordMousePaths"] as? Bool) ?? false
+        minMouseMovement = (j["minMouseMovement"] as? Double) ?? 5
+        mouseSensitivity = (j["mouseSensitivity"] as? Double) ?? 90
+        combineText = (j["combineText"] as? Bool) ?? true
+        minWaitMs = (j["minWaitMs"] as? Double) ?? 500
         current = j["current"] as? String
         slots = Slots.normalise(j["slots"])
         zones = [:]
@@ -172,6 +179,8 @@ final class Settings {
         j["speed"] = speed; j["clickDelay"] = clickDelay; j["ignoreTravel"] = ignoreTravel
         j["autoSmall"] = autoSmall; j["onTop"] = onTop; j["autoRecal"] = autoRecal
         j["current"] = current ?? NSNull()
+        j["recordMousePaths"] = recordMousePaths; j["minMouseMovement"] = minMouseMovement
+        j["mouseSensitivity"] = mouseSensitivity; j["combineText"] = combineText; j["minWaitMs"] = minWaitMs
         j["slots"] = slots
         j["zones"] = zones.mapValues { ["x": $0.x, "y": $0.y, "w": $0.w, "h": $0.h] }
         var k: [String: Any] = ["loadMods": loadMods, "runMods": runMods]
