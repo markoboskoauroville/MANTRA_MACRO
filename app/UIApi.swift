@@ -64,6 +64,13 @@ enum UIApi {
             let ed = CodeEditorController.shared
             return (["ok": true, "text": ed.string, "lines": ed.lineCount, "caret_line": ed.liveCaretLine(),
                      "selection": [ed.selection.location, ed.selection.length], "error_line": ed.errorLine ?? 0, "error": ed.errorMessage], 200)
+        case ("POST", "/ui/shot"):
+            // the window's own drawing into a picture (no screen, no permission): {file}
+            guard let cv = w.contentView, let file = j["file"] as? String,
+                  let rep = cv.bitmapImageRepForCachingDisplay(in: cv.bounds) else { return (["ok": false], 409) }
+            cv.cacheDisplay(in: cv.bounds, to: rep)
+            let ok = rep.representation(using: .png, properties: [:]).map { (try? $0.write(to: URL(fileURLWithPath: file))) != nil } ?? false
+            return (["ok": ok], 200)
         case ("GET", "/ui/views"):
             var lines: [String] = []
             func walk(_ v: NSView, _ d: Int) {
