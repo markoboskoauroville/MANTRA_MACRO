@@ -424,3 +424,42 @@ I need to have a macro dashboard so I can run multiple macros or stop multiple m
   `POST /dashboard/open {"focus":false}` (answers the window number; a capture by window id then needs no click), `POST /dashboard/close`.
 - What can start a macro by itself, in the code: visual triggers, a macro's own hotkey, the inbox, the API. No schedule, no autorun.
 
+
+## The script view as a code editor, and CAPTURE in every action dialog (v43, 28.11.2026)
+
+Marko, 28.11.2026: "any command, mouse, and text key should have a capture button ... I can capture any key, enter, escape, whatever, and
+I don't need to type ... If I say click and the dialog for finding the click is opening up, you can also click capture, and then next click
+is registered. In that way, we are recording step by step ... When I double-click the action, the edit action is opening up ... when I click
+on the next action, its edit action is opening up ... I wanted this user interface with all these actions to look like a programming
+interface ... I'm missing the line numbers, and also I'm missing the color coding. Also check the whole thing for bugs."
+
+- **One module, `app/InputCapture.swift`, plugged into the insert dialog and the edit dialog (they are the same dialog).** `CaptureButton`
+  is the one button; it turns into "Press a key…  (click to cancel)" while it waits. Arming one capture ends another. The key capture is the
+  recorder's own `KeyCapture` (Keys.swift): the key never reaches the dialog, so Enter does not confirm and Esc does not close. The mouse
+  captures use an event tap in the style of `Engine.startRecording`, but a DEFAULT tap, so the captured click is swallowed (the recorder's
+  own record tap only listens, so a recorded click does reach the app under it). Without Accessibility the default tap cannot be made; a
+  listen-only tap is used then and the app says the click also reaches the app under it. The window steps out of the way while a mouse capture
+  waits; a panel at the top of the screen says what is awaited and has CANCEL; Esc cancels; 60 s end it. The tap, the panel and the hidden
+  window are put back whatever ends the capture (a click, Cancel, Esc, the dialog closing, the window closing, the app quitting).
+- **What each dialog captures.** Key press and Shortcut: CAPTURE KEY (any key, any ⌘ ⌥ ⌃ ⇧ combination, written as `Enter`, `F5`, `^c`, `^{Enter}`,
+  `+{Tab}`). Click, double click, right click: CAPTURE CLICK (position, button, click count: a second click within the system double-click time
+  makes 2). Move mouse: CAPTURE START, CAPTURE END, CAPTURE START → END (press, drag, release). Drag: CAPTURE DRAG. Mouse wheel: CAPTURE SCROLL (direction
+  and notches, a notch = 30 points as in a recording; coasting after the fingers lift is not counted). Click image, Wait for image, Snap button:
+  CAPTURE PICTURE (the system cross-hair, `Engine.snap`) and a menu of the stored pictures. Click text, Wait for text, Find text, OcrText: CAPTURE REGION (drag a
+  rectangle, written as `"rect:x,y,w,h"`). Activate window, Wait for window, WinMinimize/Maximize/Restore/MoveTop/MoveBottom, WinSnap, AXClick, MenuSelect,
+  WinGetPos: CAPTURE WINDOW (click a window, its app name is filled in); WinMove also takes its place and size. PixelGetColor: CAPTURE POINT + COLOUR. Nothing to capture
+  (and so none): Type text, Set clipboard, Wait (milliseconds), Run, Comment. Hotkey fields (Define hotkey…, CHANGE in the settings) already had their own capture (`Engine.captureKey`).
+- **Edit mode in the script view.** While the editor is open, ONE click on another line switches the editor to that line (no double click), and so do ↑ and ↓.
+  Double click (or Return) opens the editor when it is closed. What was changed in the line you leave is APPLIED to the script in memory (never dropped, never
+  asked); Cancel closes the editor and throws the open line's changes away; Save writes the file. A NEW action that was not touched since it was opened is simply not inserted
+  when you click another line; one that is half filled (a field empty or not a number) is not applied and the app says so. New actions are inserted after the selected line.
+- **The script view looks like a code editor** (`app/ScriptView.swift`): a line-number gutter (right-aligned, dimmed, the number belongs to its row so it stays aligned
+  when the list scrolls and when a long line wraps over several lines), monospaced lines, the current line highlighted, an amber bar on the line being edited, indentation by
+  block (`{` `}` of Loop, If, While, For and function bodies; display only, the saved text keeps the indentation it had). Colours on the Mantra ground #0B0D10 with sand ink:
+  commands amber bold, block words (If Else Loop While For Break Return and or not) blue bold, strings green, pictures and files cyan, numbers salmon, keys inside Send
+  (`{Enter}`, `^ ! + #`) pink, A_ variables lavender, brackets and commas dimmed sand, comments and labels grey italic. Keys of the list: ↑ ↓ select, ⌥↑ ⌥↓ move the line,
+  Return edit, Delete remove (only while the list has the keyboard, never while a field or a CAPTURE has it). Drag-to-reorder of the old table is gone: ⌥↑ ⌥↓ and the Record and Edit menu move a line.
+- **API** (127.0.0.1:8829, UIApi.swift): `POST /ui/open {"focus":false}` (window number back), `/ui/preview {"macro":"name"}` (shows a stored macro without loading it into the player and without touching
+  settings.json), `/ui/dialog {"kind":"key|click|move|drag|wheel|text|image|waittext|window"}`, `/ui/select {"line":N}`, `/ui/edit {"line":N}`, `/ui/close-dialog`, `/ui/reset`, `/ui/close`, `GET /ui`.
+  A picture of the window without a click: `screencapture -l <window_number> file.png`.
+- **Bugs fixed with it**: see LESSONS 9 to 17.

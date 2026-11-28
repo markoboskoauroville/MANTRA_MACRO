@@ -322,3 +322,22 @@ Chrome's own full-screen Spaces (only the throwaway window).
 8. A per-job pause is not the global PauseGate: a paused job that uses the keyboard still occupies the single input slot (`state != "queued"`),
    and it gives the input lock back to Marko while it is paused (InputLock.pauseLock / resumeLock).
 
+
+9. **The Insert text dialog wrote `\"` and `\n`, which the language does not read (v43).** Strings in the script are escaped with a backtick (`` `" ``, `` `n ``,
+   `` `t ``), never a backslash. `SendText "say \"hi\""` ended the string at the quote after the backslash ("a string that never closes"), and a line break
+   was typed as the two characters backslash and n. Now one function (`ArgList.quote` / `unquote`) writes and reads them, and the comment splitter uses the same escape.
+10. **Opening a line and pressing OK rewrote lines the dialog could not hold.** `Send "hello{Enter}"` was opened as a Key press, its braces were stripped and it was saved as
+    `{helloEnter}`; `Send "^{Enter}"` became `"^Enter"` (Ctrl+E then text); a recorded right click `Click x, y, "Right"` became `MouseClick "Left", x, y, "Right"`; `MouseMove x, y` became
+    `MouseMove 0, 0, x, y, 50, 0` (the pointer jumped to the top left corner first, a hot corner). Now every dialog form (`ActionForms`) says whether a line is exactly its shape;
+    any other line opens in the generic Action and Value editor, and a line is only rewritten when a field was changed.
+11. **A new action started with a live default** (a click at 100, 100, a typed "A", the text "text"): OK on a template clicked or typed something nobody asked for. New actions
+    of those kinds start empty and OK waits until the fields are filled (CAPTURE fills them).
+12. **The editor pointed at a stale line.** Delete on the line being edited left the editor open and its OK appended a new line; a reload (a run ending, another macro) under an open
+    editor kept an index of the old script. Now delete and reload close the editor, and an edit whose line is gone changes nothing.
+13. **Unsaved changes were replaced silently** when another macro was opened or a new macro was made (the rows were reloaded over them). Now a Save / Don't save / Cancel box asks first,
+    and what is typed in the editor is applied before Save, PLAY and the macro switch.
+14. **PLAY from the window played the saved file, not what the window shows.** With unsaved changes PLAY now runs the changed script (nothing is written), as "Play from selected action" did.
+15. **Renaming a macro lost its F key** (`settings.triggers` is keyed by the macro name and was not moved; the Dashboard still listed the old name ARMED), and moving a macro to the trash left its key. Both follow the macro now.
+16. **The menu item "Wait for window" wrote `WinWaitActive "App", 10`**: the seconds are the third argument (`WinWaitActive "App", , 10`), the 10 sat in the ignored second.
+17. **The comment splitter cut `'a;b'` in two** (it knew only double quotes and any `;`) and wrote it back as `'a ; b'`; it now reads quotes, the backtick escape and "a ; starts a comment only after a space", as the lexer does.
+18. The selection followed the line index of the file; after a Save the lines are numbered again without the blank ones and the selection jumped to another line. It now stays on the same line number.

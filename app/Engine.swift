@@ -66,6 +66,7 @@ final class Engine: ObservableObject {
         if recording { stopRecording() }
         if playing { stopPlaying() }
         capture.stop()
+        InputCapture.shared.cancel()
         Hotkeys.shared.unbindAll()
         Inbox.shared.stop()
         LockServer.shared.stop(); InputLock.shared.off()
@@ -275,6 +276,7 @@ final class Engine: ObservableObject {
         Refs.rename(old, n)
         if current == old { current = n; settings.current = n }
         if let trigger = settings.visualTriggers.removeValue(forKey: old) { settings.visualTriggers[n] = trigger }
+        if let key = settings.triggers.removeValue(forKey: old) { settings.triggers[n] = key; bindKeys() }      // v43: its F key follows the new name
         settings.save(); say("renamed to " + n); changed()
     }
     func trash(_ n: String) {
@@ -283,6 +285,7 @@ final class Engine: ObservableObject {
         Slots.remove(&settings.slots, n)
         if current == n { current = nil; settings.current = nil; text = nil }
         settings.visualTriggers[n] = nil
+        if settings.triggers.removeValue(forKey: n) != nil { bindKeys() }                                       // v43: no key left for a macro that is gone
         settings.save(); say(n + " moved to the trash folder", GREYC, 1.6); changed()
     }
     func slotsChanged() { settings.save(); changed() }

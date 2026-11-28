@@ -149,3 +149,11 @@ Marko presses STOP in the Dashboard. The first row on the day of release was "Au
 Install as for v34 above: `gh release download v41`, unzip into /Applications, `codesign --force --deep -s "Mantra Apps"`, `open -g -a "Macro Recorder (Mantra)" --args --login`.
 v42 (28.11.2026): the Dashboard window kept its own size (v41 grew to 3600 px: `NSHostingView.sizingOptions = []`), and it says when the app-wide PAUSE is on
 (a RESUME button; the menu item reads "Dashboard (1 watching, ALL MACROS PAUSED)"): a trigger shown WATCHING does not fire while the app is paused.
+
+## v43 (28.11.2026): CAPTURE in every action dialog, edit mode, the script view as a code editor, bug check
+Files: `app/InputCapture.swift` (InputCapture, CaptureButton, ScriptKeys, ArgList), `app/ScriptView.swift` (colours, tokens, indentation, CodeLineView),
+`app/RecorderView.swift` (ActionForms, one dialog for insert and edit, edit-mode switching, the list's keys), `app/UIApi.swift` (POST /ui/*, see README), small
+changes in Keys.swift (`KeyCapture.start(... timeout:)`), Engine.swift (rename/trash move the F key, stop cancels a capture), Lock.swift (route /ui), App.swift (VERSION 43).
+Choice for unsaved changes in a line that is left: they are applied to the script in memory. Read README "The script view as a code editor" and LESSONS 9 to 18 before touching the dialogs.
+Not proven by hand (a session cannot press a key or click for Marko): every CAPTURE, ↑ ↓ ⌥↑ ⌥↓ Return Delete in the list, the click swallow. Seen by screenshot: the script view, the key dialog, the click dialog.
+Install as for v34: `gh release download v43`, unzip into /Applications, `codesign --force --deep -s "Mantra Apps"`, `open -g -a "Macro Recorder (Mantra)" --args --login`. The app was in its app-wide PAUSE and the visual trigger "Auto Keep Button" was left on (Marko stops it in the Dashboard): an update must not change either.

@@ -132,7 +132,8 @@ final class KeyCapture {
     var monitor: Any?, timer: Timer?
     var id: String?
     // calls back on every key with (mods, name); returns true when it is done
-    func start(_ id: String, _ onKey: @escaping (_ mods: [String], _ name: String) -> Bool, _ onTimeout: @escaping () -> Void) {
+    func start(_ id: String, _ onKey: @escaping (_ mods: [String], _ name: String) -> Bool, _ onTimeout: @escaping () -> Void,
+               timeout: TimeInterval = 15) {
         stop()
         self.id = id
         Hotkeys.shared.unbindAll()        // a chord already bound would be swallowed by its hot key before we see it
@@ -142,7 +143,7 @@ final class KeyCapture {
             if !name.isEmpty, onKey(mods, name) { self?.stop() }
             return nil
         }
-        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: false) { [weak self] _ in self?.stop(); onTimeout() }
+        timer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self] _ in self?.stop(); onTimeout() }
     }
     func stop() {
         if let m = monitor { NSEvent.removeMonitor(m) }
