@@ -395,3 +395,32 @@ not appearing anymore. ... I see you have finished the task and I still cannot u
 - Failsafes: Escape held 1 s (TAKE OVER), ⌃⌥⌘Esc (everything released), `guard release-all` (answered off the main thread;
   kills and restarts the app if it does not answer in 2 s), the 90 s watchdog, a stale-lock marker cleared and logged at start.
 - Tests: `python3 tests/test_lease.py all` (a few seconds each, simulated holders, AX presses, keys only into a new TextEdit doc).
+
+## The Dashboard and the run log (v41, 28.11.2026)
+
+Marko, 28.11.2026: "This should not happen again. I need to see when I open the macro ... make a dashboard just in the main menu ...
+I need to have a macro dashboard so I can run multiple macros or stop multiple macros." Why: the visual trigger "Auto Keep Button"
+(v35) was armed at every login and fired 57 times between 26 and 28.11.2026, each time taking the keyboard lock bar, and nothing showed it.
+
+- **Menu-bar icon > Dashboard (1 watching)**: opens the Dashboard window (plain resizable window, titled once). The menu item always
+  says how many things are armed or running ("Dashboard (1 watching, 2 running)", plain "Dashboard" when nothing is), and so does the
+  icon's hover card.
+- **One row for everything that can act**: every visual trigger (WATCHING / PAUSED / STOPPED), every macro hotkey (ARMED / PAUSED / STOPPED),
+  every running, paused or queued job, and the two channels that start macros for a caller (the Inbox folder and the local API). Columns:
+  name, kind, state, since, how many times it fired or ran, last time, PLAY PAUSE STOP. Armed-at-login items are there the moment the
+  window opens (SINCE is the app's start).
+- **STOP** on a trigger switches it off and saves `"on": false` in settings.json (off after a restart and at login); **PLAY** switches it on
+  and saves; **PAUSE** holds it until PLAY, for this run of the app only. On a running job STOP is the engine's stop path (the input lock is
+  released), PAUSE stops it between script lines and gives Marko his keyboard back, PLAY continues. Tick rows for PLAY / PAUSE / STOP TICKED;
+  **STOP ALL** switches every trigger off and stops every job. START MACROS: tick stored macros and PLAY CHECKED (the engine queues the ones
+  that need the mouse and keyboard).
+- **Run log**: `~/.mantra_macro/run_log.jsonl`, one JSON line per event with `time`, `at`, `event`, `name`, `by`: `trigger_fired` (visual
+  trigger: `score`, `match` box, `image`; hotkey), `run_start` (`by`: visual trigger / api / inbox / slot key / hotkey trigger / dashboard /
+  window), `click_image` (`score`, `match`, `point`, `clicked`: false when the second search found nothing and no click was posted),
+  `run_end` (`result`, `seconds`, `clicks_posted`, `last_click`), `dashboard` (every button pressed). The "fired" and "last" columns are counted from it.
+- **API** (127.0.0.1:8829, same server as /status): `GET /dashboard` (the rows), `GET /dashboard/log?limit=N`, `POST /dashboard/play|pause|stop`
+  `{"id":"vt:Name"}` or `{"ids":[...]}` (ids: `vt:<macro>` visual trigger, `hk:<macro>` hotkey, `run:<n>` job), `POST /dashboard/stop-all`
+  `{"except":["name"],"kinds":["run"]}` (the window's button sends neither), `POST /dashboard/start {"macros":[...]}`,
+  `POST /dashboard/open {"focus":false}` (answers the window number; a capture by window id then needs no click), `POST /dashboard/close`.
+- What can start a macro by itself, in the code: visual triggers, a macro's own hotkey, the inbox, the API. No schedule, no autorun.
+

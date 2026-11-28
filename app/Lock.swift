@@ -853,6 +853,9 @@ final class LockServer {
                     zone: zone
                 )
                 code = (out["ok"] as? Bool) == true ? 200 : 409
+            // v41: the Dashboard (Dashboard.swift): GET /dashboard, /dashboard/log, POST /dashboard/play|pause|stop|stop-all|start|open|close
+            case (_, _) where path.hasPrefix("/dashboard"):
+                let r = Dashboard.shared.api(method, path, j); out = r.0; code = r.1
             case ("POST", "/beat"): out = L.beat(owner: j["owner"] as? String ?? "")
             case ("POST", "/ping"): out = L.ping(owner: j["owner"] as? String ?? "")      // v34: the lease renewed
             case ("POST", "/unlock") where j["owner"] != nil:

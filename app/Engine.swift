@@ -34,6 +34,7 @@ final class Engine: ObservableObject {
         let usesInput: Bool
         let caller: Caller
         var state: String
+        var source = ""                        // v41: what started it (visual trigger, api, inbox, slot key, dashboard ...)
     }
     private struct RunJob {
         let host: MacHost
@@ -45,6 +46,7 @@ final class Engine: ObservableObject {
         let text: String
         let name: String
         let by: Caller
+        let source: String
         let done: ((Bool, String?, Int?) -> Void)?
     }
 
@@ -294,9 +296,9 @@ final class Engine: ObservableObject {
     func runSlot(_ s: String) {
         guard let n = settings.slots[s] else { return say("slot \(s) is empty") }
         if recording { stopRecording() }
-        runNamed(n)
+        runNamed(n, source: "slot key")
     }
-    func runNamed(_ n: String) { runMacro(n) }
+    func runNamed(_ n: String, source: String = "window") { runMacro(n, source: source) }
     // v8: a stored macro is played; when its window stands elsewhere now (or has another size) and AUTO is on, it is
     // recalibrated first, then played from the corrected file
     // v14: "trigger: <name> | <key> | on|off" from the inbox; with only the name, the state is reported
@@ -345,11 +347,11 @@ final class Engine: ObservableObject {
         say(r.1, GREYC, r.0 ? 1.6 : 3)
     }
 
-    func runMacro(_ n: String, by: Caller = .macro, done: ((Bool, String?, Int?) -> Void)? = nil) {
+    func runMacro(_ n: String, by: Caller = .macro, source: String = "", done: ((Bool, String?, Int?) -> Void)? = nil) {
         let go = { [weak self] (note: String?) in
             guard let s = self else { return }
             guard s.loadMacro(n, quiet: true), let t = s.text else { done?(false, "no macro called " + n, nil); return }
-            s.runScript(t, n, by: by, done: done)
+            s.runScript(t, n, by: by, source: source, done: done)
             if let m = note { s.sayWhilePlaying("recalibrated first: " + m, 3) }
         }
         guard settings.autoRecal, Macros.kind(n) == "script", has(Refs.dir(n) + "/view.json") else { return go(nil) }
@@ -417,27 +419,27 @@ final class Engine: ObservableObject {
     }
 
     @discardableResult
-    func runScript(_ t: String, _ name: String, by: Caller = .macro, done: ((Bool, String?, Int?) -> Void)? = nil) -> Int? {
+    func runScript(_ t: String, _ name: String, by: Caller = .macro, source: String = "", done: ((Bool, String?, Int?) -> Void)? = nil) -> Int? {
         // v29: while paused nothing new starts (the inbox keeps its files; a key, a slot or PLAY is refused here)
         if PauseGate.shared.paused {
             let why = "paused: Macro Recorder is paused, nothing starts until RESUME (macro resume)"
             say(why, ORANGEC, 3); done?(false, why, nil); return nil
         }
         let usesInput = Self.usesInput(t)
-        if usesInput, activeRuns.contains(where: { $0.usesInput && $0.state == "running" }) {
+        if usesInput, activeRuns.contains(where: { $0.usesInput && $0.state != "queued" }) {      // v41: a paused run still holds its place
             runId += 1
             let id = runId
-            queuedRuns.append(QueuedRun(id: id, text: t, name: name, by: by, done: done))
-            activeRuns.append(RunningMacro(id: id, name: name, started: Date(), usesInput: true, caller: by, state: "queued"))
+            queuedRuns.append(QueuedRun(id: id, text: t, name: name, by: by, source: source, done: done))
+            activeRuns.append(RunningMacro(id: id, name: name, started: Date(), usesInput: true, caller: by, state: "queued", source: source))
             say("queued \(name): it will use the keyboard/mouse after the current macro", GREYC, 2)
             changed()
             return id
         }
-        return launchScript(t, name, usesInput: usesInput, by: by, done: done, id: nil)
+        return launchScript(t, name, usesInput: usesInput, by: by, source: source, done: done, id: nil)
     }
 
     @discardableResult
-    private func launchScript(_ t: String, _ name: String, usesInput: Bool, by: Caller,
+    private func launchScript(_ t: String, _ name: String, usesInput: Bool, by: Caller, source: String,
                               done: ((Bool, String?, Int?) -> Void)?, id: Int?) -> Int? {
         switch Script.parse(t) {
         case .failure(let e):
@@ -460,8 +462,13 @@ final class Engine: ObservableObject {
             if let i = activeRuns.firstIndex(where: { $0.id == id }) {
                 activeRuns[i].state = "running"
             } else {
-                activeRuns.append(RunningMacro(id: id, name: name, started: Date(), usesInput: usesInput, caller: by, state: "running"))
+                activeRuns.append(RunningMacro(id: id, name: name, started: Date(), usesInput: usesInput, caller: by, state: "running", source: source))
             }
+            // v41: every run is written to the run log (RunLog, Dashboard.swift): who started it, when, and how it ended
+            let t0 = Date()
+            runner.jobId = id; runner.jobName = name
+            RunLog.shared.add(["event": "run_start", "kind": "run", "name": name, "id": id,
+                               "by": Dashboard.sourceLabel(source, by), "uses_input": usesInput])
             playing = true
             lastError = nil
             playName = name
@@ -478,6 +485,13 @@ final class Engine: ObservableObject {
                 DispatchQueue.main.async {
                     guard let job = self.runJobs.removeValue(forKey: id) else { return }
                     let stopped = runner.stopped
+                    var endLog: [String: Any] = ["event": "run_end", "kind": "run", "name": name, "id": id,
+                                                 "result": r.ok ? "done" : (stopped ? "stopped" : "error"),
+                                                 "seconds": (Date().timeIntervalSince(t0) * 10).rounded() / 10,
+                                                 "clicks_posted": runner.clicks]
+                    if let lc = runner.lastClick { endLog["last_click"] = [Int(lc.x.rounded()), Int(lc.y.rounded())] }
+                    if !r.ok && !stopped { endLog["error"] = r.message ?? "error" }
+                    RunLog.shared.add(endLog)
                     self.activeRuns.removeAll { $0.id == id }
                     self.playing = !self.activeRuns.isEmpty
                     if job.usesInput {
@@ -510,10 +524,10 @@ final class Engine: ObservableObject {
 
     func resumeQueued() {
         guard !PauseGate.shared.paused,
-              !activeRuns.contains(where: { $0.usesInput && $0.state == "running" }),
+              !activeRuns.contains(where: { $0.usesInput && $0.state != "queued" }),
               !queuedRuns.isEmpty else { return }
         let next = queuedRuns.removeFirst()
-        _ = launchScript(next.text, next.name, usesInput: true, by: next.by, done: next.done, id: next.id)
+        _ = launchScript(next.text, next.name, usesInput: true, by: next.by, source: next.source, done: next.done, id: next.id)
     }
 
     private func cancelQueued(_ why: String) {
@@ -549,6 +563,22 @@ final class Engine: ObservableObject {
         }
         runJobs[id]?.host.stopped = true
     }
+    // v41 (the Dashboard): one run paused or resumed on its own, at the safe point between script lines (MacHost.check),
+    // and its input lock given back to Marko while it is paused
+    @discardableResult func pauseRun(_ id: Int) -> Bool {
+        guard let job = runJobs[id], let i = activeRuns.firstIndex(where: { $0.id == id }), activeRuns[i].state == "running" else { return false }
+        job.host.paused = true
+        activeRuns[i].state = "paused"
+        if job.usesInput && runHoldsLock { InputLock.shared.pauseLock() }
+        changed(); return true
+    }
+    @discardableResult func resumeRun(_ id: Int) -> Bool {
+        guard let job = runJobs[id], let i = activeRuns.firstIndex(where: { $0.id == id }), activeRuns[i].state == "paused" else { return false }
+        if job.usesInput && runHoldsLock { InputLock.shared.resumeLock() }
+        job.host.paused = false
+        activeRuns[i].state = "running"
+        changed(); return true
+    }
     func stopRunOrAll(_ id: Int?) -> [String: Any] {
         if let id {
             let found = runJobs[id] != nil || queuedRuns.contains(where: { $0.id == id })
@@ -563,7 +593,7 @@ final class Engine: ObservableObject {
         return activeRuns.map {
             ["id": $0.id, "name": $0.name, "started": ISO8601DateFormatter().string(from: $0.started),
              "elapsed": now.timeIntervalSince($0.started), "usesInput": $0.usesInput,
-             "state": $0.state,
+             "state": $0.state, "source": $0.source,
              "caller": $0.caller == .claude ? "api" : "macro"] as [String: Any]
         }
     }
@@ -571,7 +601,7 @@ final class Engine: ObservableObject {
     func apiRun(_ name: String, script: String? = nil) -> [String: Any] {
         let text = script ?? Macros.read(name).text
         guard let text else { return ["ok": false, "error": "no macro called " + name] }
-        if let id = runScript(text, name, by: .claude) {
+        if let id = runScript(text, name, by: .claude, source: "api") {
             return ["ok": true, "id": id, "name": name, "running": apiRuns()]
         }
         return ["ok": false, "error": lastError?.msg ?? "macro did not start", "running": apiRuns()]
@@ -756,7 +786,9 @@ final class Engine: ObservableObject {
         for (n, t) in settings.triggers where t.on && has(MAC_DIR + "/" + n + ".ahk") {
             H.bind(Binding(mods: t.mods, key: t.key)) { [unowned self] in
                 if self.playing || self.recording { return }
-                self.runMacro(n)
+                if Dashboard.shared.sessionPaused.contains("hk:" + n) { return }       // v41: paused from the Dashboard
+                RunLog.shared.add(["event": "trigger_fired", "kind": "hotkey trigger", "name": n, "by": "hotkey " + keyLabel(Binding(mods: t.mods, key: t.key))])
+                self.runMacro(n, source: "hotkey trigger")
             }
         }
     }
@@ -813,6 +845,9 @@ enum Permissions {
 
 final class MacHost: ScriptHost {
     var stopped = false
+    var paused = false                       // v41: this one run paused from the Dashboard (the global PauseGate is separate)
+    var jobId = 0, jobName = ""              // v41: for the run log
+    var clicks = 0, lastClick: CGPoint?      // v41: clicks this run posted, and where the last one went
     var speed = 1.0, clickDelay = 0.0
     var lastClickAt = 0.0
     let src = CGEventSource(stateID: .hidSystemState)
@@ -822,7 +857,15 @@ final class MacHost: ScriptHost {
     func check() throws {
         if stopped { throw ScriptStopped() }
         if PauseGate.shared.paused { PauseGate.shared.gate { self.stopped } }
+        if paused { holdOwn() }
         if stopped { throw ScriptStopped() }
+    }
+    /// v41: this run's own pause: waits between steps until it is resumed or stopped; returns the seconds waited
+    @discardableResult func holdOwn() -> Double {
+        guard paused else { return 0 }
+        let t0 = Date()
+        while paused && !stopped { Thread.sleep(forTimeInterval: 0.02) }
+        return Date().timeIntervalSince(t0)
     }
     func checkStop() throws { if stopped { throw ScriptStopped() } }
     func now() -> Double { Date().timeIntervalSince1970 }
@@ -836,6 +879,7 @@ final class MacHost: ScriptHost {
             Thread.sleep(forTimeInterval: max(0, min(0.01, end - now())))
             try checkStop()
             if pausable && PauseGate.shared.paused { end += PauseGate.shared.gate { self.stopped }; try checkStop() }
+            if pausable && paused { end += holdOwn(); try checkStop() }
         }
     }
     func sleep(_ seconds: Double) throws { try wait(seconds > 0 ? seconds / speed : 0) }
@@ -872,6 +916,7 @@ final class MacHost: ScriptHost {
             mouse(b.0, p, b.3, mods, i); mouse(b.1, p, b.3, mods, i)
             if i < n { try wait(0.06, pausable: false) }
         }
+        clicks += 1; lastClick = p
         lastClickAt = now()
     }
     func buttonDownUp(_ button: String, _ down: Bool, _ x: Double?, _ y: Double?, _ mods: [String]) throws {
@@ -946,6 +991,13 @@ final class MacHost: ScriptHost {
         return r
     }
     func ocrLines(_ spec: String) -> [OcrLine] { Ocr.read(spec).lines }
+    func noteImageClick(_ file: String, _ hit: ImageHit?, _ button: String, _ x: Double, _ y: Double, _ clicked: Bool) {
+        var o: [String: Any] = ["event": "click_image", "name": jobName, "id": jobId, "image": file, "clicked": clicked, "button": button]
+        if let h = hit { o["score"] = (h.score * 1000).rounded() / 1000; o["match"] = [Int(h.x), Int(h.y), Int(h.w), Int(h.h)] }
+        if clicked { o["point"] = [Int(x.rounded()), Int(y.rounded())] }
+        else { o["note"] = "second search found nothing: no click posted" }
+        RunLog.shared.add(o)
+    }
     func searchHold(_ on: Bool) { DispatchQueue.main.async { on ? Overlay.shared.spinStart() : Overlay.shared.spinEnd() } }
     func pixel(_ x: Double, _ y: Double) -> String { Eye.pixel(x, y) }
     func say(_ text: String, _ long: Bool) { e.sayWhilePlaying(text, long ? 3 : 1.6) }

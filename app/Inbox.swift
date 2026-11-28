@@ -211,9 +211,9 @@ final class Inbox {
             let n = trimmed.dropFirst(4).trimmingCharacters(in: .whitespaces)
             guard has(MAC_DIR + "/" + n + ".ahk") else { return finish(id, false, "no macro called " + n, nil) }
             // a stored macro plays the way the slots play it: recalibrated first when its window moved (v8)
-            return Engine.shared.runMacro(n, by: .claude) { ok, msg, line in self.finish(id, ok, msg, line) }
+            return Engine.shared.runMacro(n, by: .claude, source: "inbox") { ok, msg, line in self.finish(id, ok, msg, line) }
         }
-        Engine.shared.runScript(text, "macro do", by: .claude) { ok, msg, line in self.finish(id, ok, msg, line) }
+        Engine.shared.runScript(text, "macro do", by: .claude, source: "inbox") { ok, msg, line in self.finish(id, ok, msg, line) }
     }
     private func finish(_ id: String, _ ok: Bool, _ msg: String?, _ line: Int?) {
         answer(id, ok, msg, line)

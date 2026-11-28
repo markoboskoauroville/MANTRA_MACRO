@@ -60,6 +60,7 @@ protocol ScriptHost: AnyObject {
     func wheel(_ dir: String, _ times: Int, _ mods: [String]) throws
     func imageSearch(_ file: String, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) throws -> ImageHit?
     func searchHold(_ on: Bool)
+    func noteImageClick(_ file: String, _ hit: ImageHit?, _ button: String, _ x: Double, _ y: Double, _ clicked: Bool)   // v41: the run log
     func pixel(_ x: Double, _ y: Double) -> String
     func say(_ text: String, _ long: Bool)
     func run(_ what: String)
@@ -77,6 +78,7 @@ protocol ScriptHost: AnyObject {
     func fileRead(_ p: String) -> String
     func fileAppend(_ text: String, _ p: String)
 }
+extension ScriptHost { func noteImageClick(_ file: String, _ hit: ImageHit?, _ button: String, _ x: Double, _ y: Double, _ clicked: Bool) {} }   // v41: hosts that keep no run log
 extension ScriptHost { func ocrLines(_ spec: String) -> [OcrLine] { [] } }
 
 // MARK: errors
@@ -1642,9 +1644,14 @@ enum Script {
             H["clickimage"] = { I, v, line in
                 // ClickImage "file.png" [, seconds to wait] [, "Right"]  -> 1 clicked, 0 not found
                 let button = a(v, 2).map { toStr($0).lowercased() } ?? "left"
-                return .num(try findLoop(I, toStr(a(v, 0)), try optNum(a(v, 1), line, 0)!, 0.4) { r in
-                    try I.host.click(button, r.x + (r.w / 2).rounded(.down), r.y + (r.h / 2).rounded(.down), 1, I.heldMods())
-                } ? 1 : 0)
+                let file = toStr(a(v, 0))
+                let found = try findLoop(I, file, try optNum(a(v, 1), line, 0)!, 0.4) { r in
+                    let px = r.x + (r.w / 2).rounded(.down), py = r.y + (r.h / 2).rounded(.down)
+                    try I.host.click(button, px, py, 1, I.heldMods())
+                    I.host.noteImageClick(file, r, button, px, py, true)         // v41: the run log: the match score and the point clicked
+                }
+                if !found { I.host.noteImageClick(file, nil, button, 0, 0, false) }
+                return .num(found ? 1 : 0)
             }
             // v19 (Marko, 9.11.2026: "give it eyes: read the text on screen"): OCR through Apple Vision (Ocr.swift)
             H["ocrtext"] = { I, v, _ in

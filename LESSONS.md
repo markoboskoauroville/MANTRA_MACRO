@@ -313,3 +313,12 @@ Chrome's own full-screen Spaces (only the throwaway window).
    (or wait) before installing, and check the asset's time against the run that built the head.
 6. A GitHub test that compiles one file alone (BlobPanel.swift in run_blob_tests.sh) breaks when that file names a type from
    another file: keep such files self-contained.
+7. **A trigger armed at login that nobody can see (28.11.2026).** The visual trigger "Auto Keep Button" (a 47 x 28 picture of VS Code's Keep
+   button, searched every 0.3 s in the bottom 400 px of the screen at 85 %) was switched on by the app at every login and fired 57 times in two
+   days. Each firing took the input lock for 0.1 to 1.1 s (the bar flashed, one of Marko's Cmd+Q was swallowed) and then looked for the picture
+   again before clicking. It was only found by reading guard_log.jsonl, because nothing wrote down WHY a macro started or whether a click was
+   posted. Rule: anything that can start a macro by itself has a row in the Dashboard from the moment it is armed, and every start, every picture
+   score and every click point goes to run_log.jsonl. A new kind of automatic start is not finished until it has its row.
+8. A per-job pause is not the global PauseGate: a paused job that uses the keyboard still occupies the single input slot (`state != "queued"`),
+   and it gives the input lock back to Marko while it is paused (InputLock.pauseLock / resumeLock).
+

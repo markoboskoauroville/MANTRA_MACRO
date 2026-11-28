@@ -139,3 +139,12 @@ Install: `gh release download v34`, quit the old app with `macro ax-quit` after 
 `codesign --force --deep -s "Mantra Apps"`, `open -g -a "Macro Recorder (Mantra)" --args --login` (as at login: no window, no
 permission prompt; settings, macros and the PAUSE state live in ~/.mantra_macro and come back by themselves).
 
+## v41 (28.11.2026): the Dashboard and the run log
+New files: `app/Dashboard.swift` (RunLog, the rows, PLAY/PAUSE/STOP, the /dashboard API) and `app/DashboardView.swift` (the window). Touched:
+`Engine.swift` (a `source` on every run, per-job pause `MacHost.paused` / `Engine.pauseRun` / `resumeRun`, run_start / run_end lines, hotkey
+paused check), `VisualTrigger.swift` (a `paused` set, the score, trigger_fired line), `Script.swift` (ClickImage reports its score and point
+through `ScriptHost.noteImageClick`), `Lock.swift` (route /dashboard*), `App.swift` (menu item "Dashboard (N watching)" updated every 0.5 s,
+`_ = Dashboard.shared.launched`), `Inbox.swift` (source "inbox"). settings.json is untouched by the update: a trigger that was on stays on until
+Marko presses STOP in the Dashboard. The first row on the day of release was "Auto Keep Button", WATCHING, left on on purpose.
+Install as for v34 above: `gh release download v41`, unzip into /Applications, `codesign --force --deep -s "Mantra Apps"`, `open -g -a "Macro Recorder (Mantra)" --args --login`.
+

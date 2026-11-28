@@ -36,7 +36,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 40
+let VERSION = 41
 let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 
@@ -69,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { if NSApp.isHidden { NSApp.unhideWithoutActivation() } }
         BlobCenter.shared.start()
         e.start()
+        _ = Dashboard.shared.launched            // v41: the moment the triggers were armed (the Dashboard's SINCE column)
         e.openWindow = { [weak self] in self?.toggleWindow() }
         buildWindow()
         menuBarIcon()
@@ -95,6 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         si.button?.attributedTitle = HoverCard.rightPipe()
         let m = NSMenu()
         m.addItem(withTitle: "Open Macro Recorder", action: #selector(openFromMenu), keyEquivalent: "").target = self
+        // v41: the Dashboard: everything that is armed or running, with PLAY PAUSE STOP; the title says how many are active
+        let di = NSMenuItem(title: Dashboard.shared.menuTitle(), action: #selector(openDashboard), keyEquivalent: "")
+        di.target = self; m.addItem(di); dashItem = di
         m.addItem(withTitle: "Record / Stop (⌃⌥⌘R)", action: #selector(recordFromMenu), keyEquivalent: "").target = self
         m.addItem(withTitle: "Play / Stop (⌃⌥⌘P)", action: #selector(playFromMenu), keyEquivalent: "").target = self
         let pi = NSMenuItem(title: "Pause macros", action: #selector(pauseFromMenu), keyEquivalent: "")
@@ -110,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let col: NSColor = paused ? ORANGEC : st == "RECORDING" ? .systemRed : st == "PLAYING" ? .systemGreen : .white
             return HoverCard.Content(name: "Macro Recorder (Mantra)", what: "The one hand on the keyboard, mouse and screen", state: st, stateColor: col,
                 lines: ["Input lock: \(InputLock.shared.state)", "Macro in player: " + (e?.current ?? "last recording"),
+                        "Dashboard: " + (Dashboard.shared.summary().isEmpty ? "nothing armed or running" : Dashboard.shared.summary()),
                         "Pauses this session: \(PauseGate.shared.pauses)" + (paused ? " (by " + PauseGate.shared.by + ")" : ""),
                         "Last message: " + (Overlay.shared.text.isEmpty ? "none" : Overlay.shared.text)])
         }
@@ -121,9 +126,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if b.contentTintColor != tint { b.contentTintColor = tint }
             let title = paused ? "Resume macros (PAUSED)" : "Pause macros"
             if s.pauseItem?.title != title { s.pauseItem?.title = title }
+            let dt = Dashboard.shared.menuTitle()
+            if s.dashItem?.title != dt { s.dashItem?.title = dt }
         }
     }
     @objc func openFromMenu() { show() }
+    var dashItem: NSMenuItem?
+    @objc func openDashboard() { DashboardWindow.show() }
     var pauseItem: NSMenuItem?
     @objc func pauseFromMenu() { if PauseGate.shared.paused { PauseGate.shared.resume(by: "menu") } else { PauseGate.shared.pause(by: "menu") } }
     @objc func recordFromMenu() { e.toggleRecording() }
