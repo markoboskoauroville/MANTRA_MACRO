@@ -64,6 +64,15 @@ enum UIApi {
             let ed = CodeEditorController.shared
             return (["ok": true, "text": ed.string, "lines": ed.lineCount, "caret_line": ed.liveCaretLine(),
                      "selection": [ed.selection.location, ed.selection.length], "error_line": ed.errorLine ?? 0, "error": ed.errorMessage], 200)
+        case ("GET", "/ui/views"):
+            var lines: [String] = []
+            func walk(_ v: NSView, _ d: Int) {
+                if d > 9 { return }
+                lines.append(String(repeating: " ", count: d) + "\(type(of: v)) \(NSStringFromRect(v.frame)) hidden=\(v.isHidden)")
+                for c in v.subviews { walk(c, d + 1) }
+            }
+            if let cv = w.contentView { walk(cv, 0) }
+            return (["ok": true, "views": lines], 200)
         case ("GET", "/ui"):
             return (["ok": true, "visible": w.isVisible, "window_number": w.windowNumber, "capture_armed": InputCapture.shared.armed], 200)
         default:
