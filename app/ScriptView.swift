@@ -368,6 +368,7 @@ final class CodeEditorController: NSObject, ObservableObject, NSTextViewDelegate
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = true
         scroll.backgroundColor = ns(0x0B, 0x0D, 0x10)
+        scroll.appearance = NSAppearance(named: .darkAqua)
         scroll.documentView = view
         let gutter = GutterRuler(scrollView: scroll)
         gutter.controller = self
@@ -723,4 +724,9 @@ final class CodeEditorController: NSObject, ObservableObject, NSTextViewDelegate
 struct CodeEditorView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView { CodeEditorController.shared.scrollView }
     func updateNSView(_ nsView: NSScrollView, context: Context) {}
+
+    /// the editor takes the room it is offered and asks for none of its own (its text is as tall as the macro: that must not push the rest of the window out)
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 400, height: proposal.height ?? 200)
+    }
 }
