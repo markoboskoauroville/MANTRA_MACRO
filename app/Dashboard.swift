@@ -192,6 +192,7 @@ final class Dashboard {
         if c.watching > 0 { parts.append("\(c.watching) watching") }
         if c.running > 0 { parts.append("\(c.running) running") }
         if c.paused > 0 { parts.append("\(c.paused) paused") }
+        if PauseGate.shared.paused { parts.append("ALL MACROS PAUSED") }       // the app-wide PAUSE (menu): nothing fires or starts
         return parts.joined(separator: ", ")
     }
     func menuTitle() -> String { let t = summary(); return t.isEmpty ? "Dashboard" : "Dashboard (" + t + ")" }
@@ -277,7 +278,7 @@ final class Dashboard {
 
     func snapshot() -> [String: Any] {
         let c = counts()
-        return ["ok": true, "version": VERSION, "title": menuTitle(), "watching": c.watching, "running": c.running, "paused": c.paused,
+        return ["ok": true, "version": VERSION, "title": menuTitle(), "watching": c.watching, "running": c.running, "paused": c.paused, "app_paused": PauseGate.shared.paused,
                 "app_started": ISO8601DateFormatter().string(from: launched), "run_log": RUN_LOG_FILE,
                 "rows": rows().map { $0.json }]
     }

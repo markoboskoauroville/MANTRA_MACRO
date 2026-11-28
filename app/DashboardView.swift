@@ -43,6 +43,16 @@ struct DashboardView: View {
                     message = "stopped \((r["stopped"] as? [String])?.count ?? 0)"; selected = []
                 }
             }
+            if PauseGate.shared.paused {
+                HStack(alignment: .center, spacing: 10) {
+                    Text("All macros are paused (by \(PauseGate.shared.by)): nothing fires and nothing starts until RESUME. The rows below show what would be armed.")
+                        .font(.system(size: 12, weight: .bold)).foregroundColor(.amber).fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Word(text: "RESUME", color: .on, size: 13, help: "the same as Resume macros in the menu") {
+                        PauseGate.shared.resume(by: "dashboard"); message = "resumed"
+                    }
+                }
+            }
             Text("A trigger that is on starts its macro by itself. STOP switches it off for good (saved), PAUSE holds it until PLAY while the app runs.")
                 .font(.system(size: 11)).foregroundColor(.off).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .center, spacing: 10) {
@@ -155,7 +165,10 @@ final class DashboardWindow {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1060, height: 640), styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
             w.title = "Dashboard · Macro Recorder (Mantra)"; w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: DashboardView())
+            let host = NSHostingView(rootView: DashboardView())
+            host.sizingOptions = []                  // the window keeps its own size: the content never makes it taller
+            w.contentView = host
+            w.setContentSize(NSSize(width: 1060, height: 640))
             w.minSize = NSSize(width: 960, height: 420)
             w.backgroundColor = GROUND
             w.center()
