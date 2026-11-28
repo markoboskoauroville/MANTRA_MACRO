@@ -463,3 +463,31 @@ interface ... I'm missing the line numbers, and also I'm missing the color codin
   settings.json), `/ui/dialog {"kind":"key|click|move|drag|wheel|text|image|waittext|window"}`, `/ui/select {"line":N}`, `/ui/edit {"line":N}`, `/ui/close-dialog`, `/ui/reset`, `/ui/close`, `GET /ui`.
   A picture of the window without a click: `screencapture -l <window_number> file.png`.
 - **Bugs fixed with it**: see LESSONS 9 to 17.
+
+## The code editor (v44, 28.11.2026)
+
+Marko, 28.11.2026: "the part which is having lines, numbers, we call it code editor. It needs to be as such. Really like any code editor ... I can
+easily select multiple lines and delete them. Delete and backspace work the same way. And I can press Ctrl A and delete everything."
+
+- **The part of the window with the line numbers is the CODE EDITOR** (`app/ScriptView.swift`): a real text editor, an NSTextView (TextKit) in a scroll
+  view with a line-number ruler. The TEXT of the macro is the only model (v43's list of rows is gone); the counter, the duration and the Edit dialog are derived from it.
+  Save writes the text exactly as it stands: blank lines, spacing, a line that does not parse. Long lines wrap; nothing is cut off.
+- **Editing as in any Mac text editor**: caret, click, shift-click, drag across lines, shift+arrows, double click a word, triple click a line, typing in a line,
+  Delete and Backspace over a selection (one character back / forward with no selection), ⌘A or ⌃A then Delete empties the script, cut, copy, paste (plain text),
+  ⌘Z and ⇧⌘Z (the text view's undo manager). ⌃A selects all here, so it does NOT go to the start of the line in this editor (Home and ⌘← do). Tab inserts 4 spaces
+  (the indentation the macros use); with several lines selected it indents them all; ⇧Tab outdents. Return keeps the indentation of the line, one level deeper after a line ending with `{`.
+  ⌥↑ ⌥↓ move the line or the selected lines (one undoable edit).
+- **Colours are kept and follow the typing**: commands amber bold, block words blue bold, strings green, pictures cyan, numbers salmon, keys inside Send pink, A_ variables lavender,
+  brackets dimmed, comments grey. The caret line is lit in the text and its number is brighter in the gutter.
+- **A line that does not parse never breaks the editor**: `Script.parse` names the first one; it gets a red dot and a red number in the gutter, a dotted red underline, its reason on hover
+  over the gutter and in the status line. The text is never changed.
+- **Insert and Edit Action (v43's dialogs and every CAPTURE) work on the text**: a new action is inserted after the caret line with the indentation of that line (one undoable edit; the dialog
+  is still the same one). Edit Action opens for the line the caret is in: the Edit button, ⌘E, the menu Record and Edit. A double click selects a word now, so it no longer opens it, and Return types a new line.
+  While Edit Action is open it follows the caret line; what was changed in the dialog is applied to the line you leave as one undoable edit (a line is only rewritten when a field was changed; its indentation is kept).
+  Typing in the line while its dialog is open refreshes the dialog (unless the dialog has changes of its own).
+- Delete lines (button) removes the lines the selection touches; Search & replace works on the whole text as one undoable edit; Find (the field in the status bar, Return = next); Play runs what the editor shows (changed or not); Play from the caret line.
+  The old list had no highlight for the running line, so there is none now. The unsaved-changes question, Save, recording (the new text arrives when it stops) are as before.
+- **API additions** (127.0.0.1:8829): `POST /ui/text {"text"}` (an undoable edit of the whole text), `/ui/select-range {"from","to"}`, `/ui/command {"name":"select-all|delete|backspace|forward-delete|undo|redo|cut|copy|paste|indent|outdent"}`
+  (the text view's real methods), `/ui/save` (a previewed macro is written as it is, and nothing else changes), `/ui/commit`, `GET /ui/text`.
+- **Also v44**: the Dashboard's START (POST /dashboard/start) no longer puts the macro in the player (settings.json "current" is kept); when "current" names a macro that is gone, the app starts with none. Sleep wakes every 10 ms for stop and for a Dashboard pause.
+  Playback speed is a setting of the window (PLAYBACK, 1× 2× 4× …): at 4× every `Sleep 1000` lasts 250 ms.

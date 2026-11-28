@@ -5,6 +5,9 @@
 //                                      (settings.json is not touched); ends by itself after 5 minutes without a call, or /ui/reset
 //   POST /ui/dialog {kind}             opens the insert dialog: key, click, move, drag, wheel, text, image, waittext, window
 //   POST /ui/select {line} / /ui/edit {line}   selects line N (from 1) / opens its Edit dialog
+//   v44, the code editor: POST /ui/text {text} (an undoable edit of the whole text), /ui/select-range {from,to} (lines), /ui/command {name:
+//     select-all|delete|backspace|forward-delete|undo|redo|cut|copy|paste|indent|outdent} (the text view's real methods), /ui/save (a previewed macro is
+//     written as it is), /ui/commit (OK of the dialog), GET /ui/text (text, lines, caret_line, selection, error_line)
 //   POST /ui/close-dialog              closes the dialog (a capture that waits in it is cancelled)
 //   POST /ui/reset                     the window shows the player's macro again
 //   POST /ui/close                     the window off the screen (a capture that waits is cancelled)
@@ -40,6 +43,27 @@ enum UIApi {
              ("POST", "/ui/close-dialog"), ("POST", "/ui/reset"):
             ask(String(path.dropFirst("/ui/".count)))
             return (["ok": true, "window_number": w.windowNumber], 200)
+        case ("POST", "/ui/save"), ("POST", "/ui/commit"):
+            ask(String(path.dropFirst("/ui/".count)))
+            return (["ok": true], 200)
+        // the code editor itself (ScriptView.swift): its text, its selection, its own commands
+        case ("POST", "/ui/text"):
+            let ed = CodeEditorController.shared
+            ed.replace(NSRange(location: 0, length: (ed.string as NSString).length), with: j["text"] as? String ?? "")
+            return (["ok": true, "lines": ed.lineCount], 200)
+        case ("POST", "/ui/select-range"):
+            let ed = CodeEditorController.shared
+            let from = j["from"] as? Int ?? 1
+            ed.selectLines(from, j["to"] as? Int ?? from)
+            return (["ok": true, "selection": [ed.selection.location, ed.selection.length]], 200)
+        case ("POST", "/ui/command"):
+            let ed = CodeEditorController.shared
+            ed.command(j["name"] as? String ?? "")
+            return (["ok": true, "lines": ed.lineCount, "caret_line": ed.liveCaretLine()], 200)
+        case ("GET", "/ui/text"):
+            let ed = CodeEditorController.shared
+            return (["ok": true, "text": ed.string, "lines": ed.lineCount, "caret_line": ed.liveCaretLine(),
+                     "selection": [ed.selection.location, ed.selection.length], "error_line": ed.errorLine ?? 0, "error": ed.errorMessage], 200)
         case ("GET", "/ui"):
             return (["ok": true, "visible": w.isVisible, "window_number": w.windowNumber, "capture_armed": InputCapture.shared.armed], 200)
         default:

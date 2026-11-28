@@ -157,3 +157,8 @@ changes in Keys.swift (`KeyCapture.start(... timeout:)`), Engine.swift (rename/t
 Choice for unsaved changes in a line that is left: they are applied to the script in memory. Read README "The script view as a code editor" and LESSONS 9 to 18 before touching the dialogs.
 Not proven by hand (a session cannot press a key or click for Marko): every CAPTURE, ↑ ↓ ⌥↑ ⌥↓ Return Delete in the list, the click swallow. Seen by screenshot: the script view, the key dialog, the click dialog.
 Install as for v34: `gh release download v43`, unzip into /Applications, `codesign --force --deep -s "Mantra Apps"`, `open -g -a "Macro Recorder (Mantra)" --args --login`. The app was in its app-wide PAUSE and the visual trigger "Auto Keep Button" was left on (Marko stops it in the Dashboard): an update must not change either.
+
+## v44 (28.11.2026): the code editor
+`app/ScriptView.swift` is an NSTextView editor (CodeEditorController.shared, CodeTextView, GutterRuler); `app/RecorderView.swift` drives it (the dialogs write into the text). Choices: Edit Action = the caret line (button, ⌘E, menu), follows the caret,
+changes applied on leaving the line; ⌃A and ⌘A select all (⌃A no longer goes to the line start in the editor); Tab = 4 spaces; an invalid line is only marked (gutter, underline, status line), never changed; Save writes the text as it is.
+Install as for v34 (wait for the input lock to be off; the app refuses to quit while a job holds it).

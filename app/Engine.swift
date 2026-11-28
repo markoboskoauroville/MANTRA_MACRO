@@ -55,7 +55,8 @@ final class Engine: ObservableObject {
     func start() {
         mkdirs(DIR, MAC_DIR, IMG_DIR)
         settings.load()
-        if let c = settings.current { _ = loadMacro(c, quiet: true) }
+        // v44: "current" names a macro that is gone (a test deleted it): none, no crash, no file made
+        if let c = settings.current, !loadMacro(c, quiet: true) { settings.current = nil; settings.save() }
         bindKeys()
         PauseGate.shared.load()                  // v29: paused before a restart stays paused
         Inbox.shared.start()
@@ -350,9 +351,16 @@ final class Engine: ObservableObject {
         say(r.1, GREYC, r.0 ? 1.6 : 3)
     }
 
-    func runMacro(_ n: String, by: Caller = .macro, source: String = "", done: ((Bool, String?, Int?) -> Void)? = nil) {
+    /// keepPlayer (v44): run it without putting it in the player (the Dashboard's START must not change settings.json "current")
+    func runMacro(_ n: String, by: Caller = .macro, source: String = "", keepPlayer: Bool = false, done: ((Bool, String?, Int?) -> Void)? = nil) {
         let go = { [weak self] (note: String?) in
             guard let s = self else { return }
+            if keepPlayer {
+                guard let t = Macros.read(n).text else { done?(false, "no macro called " + n, nil); return }
+                s.runScript(t, n, by: by, source: source, done: done)
+                if let m = note { s.sayWhilePlaying("recalibrated first: " + m, 3) }
+                return
+            }
             guard s.loadMacro(n, quiet: true), let t = s.text else { done?(false, "no macro called " + n, nil); return }
             s.runScript(t, n, by: by, source: source, done: done)
             if let m = note { s.sayWhilePlaying("recalibrated first: " + m, 3) }

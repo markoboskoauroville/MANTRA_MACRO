@@ -36,7 +36,7 @@
 import AppKit
 import SwiftUI
 
-let VERSION = 43
+let VERSION = 44
 let APP_NAME = "Macro Recorder (Mantra)"
 let RELEASES = "https://mantramacrorecorder.pages.dev"     // v7: its own website (an independent release, 31.10.2026)
 

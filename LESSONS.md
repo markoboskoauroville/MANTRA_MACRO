@@ -341,3 +341,7 @@ Chrome's own full-screen Spaces (only the throwaway window).
 16. **The menu item "Wait for window" wrote `WinWaitActive "App", 10`**: the seconds are the third argument (`WinWaitActive "App", , 10`), the 10 sat in the ignored second.
 17. **The comment splitter cut `'a;b'` in two** (it knew only double quotes and any `;`) and wrote it back as `'a ; b'`; it now reads quotes, the backtick escape and "a ; starts a comment only after a space", as the lexer does.
 18. The selection followed the line index of the file; after a Save the lines are numbered again without the blank ones and the selection jumped to another line. It now stays on the same line number.
+19. **A list of rows is not a text editor (v44).** v43's script view could not select several lines, ⌘A, delete or undo, and it dropped blank lines on Save. The model is the text now: one NSTextView
+    with its own undo manager, and everything else (counter, Edit dialog, colours, errors) is derived from it. Dialog edits are one `replaceCharacters` through `shouldChangeText` / `didChangeText`, so they are one undo step.
+20. The Dashboard's START went through `loadMacro`, which writes settings.json "current" (a test left it on a macro it then deleted). `runMacro(... keepPlayer: true)` reads the file and runs it without touching the player.
+21. "Sleep is 4 times faster" was not a bug: settings.json "speed" is 4 (the 4× word in the PLAYBACK row of the window); Sleep divides by it.

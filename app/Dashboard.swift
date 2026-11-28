@@ -268,7 +268,7 @@ final class Dashboard {
     func start(_ names: [String], by: String = "dashboard") -> [String: Any] {
         var started: [String] = [], missing: [String] = []
         for n in names {
-            if Macros.exists(n) { e.runMacro(n, source: by); started.append(n) } else { missing.append(n) }
+            if Macros.exists(n) { e.runMacro(n, source: by, keepPlayer: true); started.append(n) } else { missing.append(n) }
         }
         RunLog.shared.add(["event": "dashboard", "action": "start", "by": by, "macros": started])
         return ["ok": missing.isEmpty, "started": started, "missing": missing]

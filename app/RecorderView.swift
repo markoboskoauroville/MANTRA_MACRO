@@ -186,12 +186,6 @@ enum ActionForms {
     static func text(_ value: String) -> String? { single(value) }
 }
 
-/// holds the one key monitor of the script view, so the window can be built again without a second one
-final class KeyMonitorBox {
-    var token: Any?
-    deinit { if let t = token { NSEvent.removeMonitor(t) } }
-}
-
 private enum ActionEditorKind: Equatable {
     case mouseMove, mouseClick, mouseDrag, wheel, keyPress, text, generic
 
@@ -229,8 +223,7 @@ struct MainView: View {
     var edit: (String) -> Void
     var docs: () -> Void
 
-    @State private var rows: [ActionRow] = []
-    @State private var selected: Int?
+    @ObservedObject private var ed = CodeEditorController.shared
     @State private var search = ""
     @State private var replace = ""
     @State private var showReplace = false
@@ -238,15 +231,15 @@ struct MainView: View {
     @State private var showMacroBrowser = false
     @State private var showMacroPicker = false
     @FocusState private var macroFieldFocused: Bool
-    @State private var keyMonitor: KeyMonitorBox?
-    @State private var dirty = false
+    @State private var savedText = ""
     @State private var previewing = false
     @State private var previewAt = Date()
     @State private var actionEditorOpen = false
-    @State private var editingAction: Int?
-    @State private var insertAfter: Int?
+    @State private var editingLine: Int?
+    @State private var insertAfterLine = 0
+    @State private var editLoadedText = ""
     @State private var editBaseline = ""
-    @State private var lastInserted: Int?
+    @State private var lastInsertedLine: Int?
     @State private var captureNote = ""
     @State private var editorKind: ActionEditorKind = .generic
     @State private var editAction = ""
@@ -275,18 +268,15 @@ struct MainView: View {
         e.current ?? Macros.list().first ?? "New Macro"
     }
 
-    private func matchesSearch(_ row: ActionRow) -> Bool {
-        let q = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        return q.isEmpty || (row.action + " " + row.value + " " + row.label + " " + row.comment).localizedCaseInsensitiveContains(q)
-    }
+    /// the text is the model: unsaved = different from what was loaded or saved
+    private var dirty: Bool { ed.text != savedText }
 
-    private var displayed: [ActionRow] {
-        rows.filter { matchesSearch($0) }
-    }
+    /// the actions, derived from the text
+    private var parsedRows: [ActionRow] { RecorderRows.parse(ed.text) }
 
     private var duration: String {
         var ms = 0.0
-        for row in rows where row.action.lowercased() == "sleep" {
+        for row in parsedRows where row.action.lowercased() == "sleep" {
             ms += Double(row.value.filter { $0.isNumber }) ?? 0
         }
         let sec = Int(ms / 1000)
@@ -305,16 +295,15 @@ struct MainView: View {
             }
         }
         .foregroundColor(.sand)
-        .onAppear {
-            reload()
-            installKeys()
-        }
+        .onAppear { reload() }
         .onChange(of: e.tick) { _ in if !dirty && !actionEditorOpen { reload() } }
         .onChange(of: e.current) { _ in
             if actionEditorOpen { applyEdit() }          // v43: what is typed in the editor is not lost when another macro comes into the player
             if !dirty { reload() }
         }
         .onChange(of: bridge.seq) { _ in runBridge(bridge.command) }
+        .onChange(of: ed.caretLine) { _ in followCaret() }
+        .onChange(of: ed.revision) { _ in refreshEditorLine() }
         .frame(minWidth: 760, minHeight: 480)
     }
 
@@ -331,7 +320,7 @@ struct MainView: View {
             }
             Menu("Record and Edit") {
                 Button("Start recording") { e.toggleRecording() }
-                Button("Edit selected action") { editCurrent() }
+                Button("Edit the action of this line (⌘E)") { editCurrent() }
                 Button("Add action") { beginNewAction("Send \"\"") }
                 Button("Move line up (⌥↑)") { moveSelected(-1) }
                 Button("Move line down (⌥↓)") { moveSelected(1) }
@@ -340,7 +329,7 @@ struct MainView: View {
             }
             Menu("Playback") {
                 Button(e.playing ? "Stop" : "Play") { playShown() }
-                Button("Play from selected action") { playFromSelection() }
+                Button("Play from the caret line") { playFromSelection() }
                 Button("Stop all") { e.stopAll() }
                 Divider()
                 Button("Define hotkey…") { e.captureKey("play") }
@@ -477,8 +466,8 @@ struct MainView: View {
                 Button("Recalibrate") { if let current = e.current { e.recalibrate(current) } }
             }
             Spacer()
-            toolbarButton("Edit") { editCurrent() }
-            toolbarButton("Delete ⌫") { deleteSelection() }
+            toolbarButton("Edit ⌘E") { editCurrent() }.keyboardShortcut("e", modifiers: .command)
+            toolbarButton("Delete lines") { deleteSelection() }
             toolbarButton("Search & replace") { showReplace = true }
         }
         .padding(.horizontal, 12).frame(height: 62)
@@ -541,15 +530,16 @@ struct MainView: View {
 
     private var actionTable: some View {
         VStack(spacing: 0) {
-            scriptList
+            CodeEditorView().frame(minHeight: 140)
             if actionEditorOpen {
                 actionEditor
             }
-            if showReplace || !search.isEmpty || dirty {
+            if showReplace || dirty {
                 HStack {
-                    TextField("Find", text: $search).frame(width: 180)
+                    TextField("Find", text: $search).frame(width: 180).onSubmit { findNext() }
+                    Button("Find next") { findNext() }
                     TextField("Replace", text: $replace).frame(width: 180)
-                    Button("Replace in values/comments") { replaceAll() }
+                    Button("Replace all") { replaceAll() }
                     Spacer()
                     if dirty { Button("Save changes") { save() } }
                 }
@@ -558,78 +548,23 @@ struct MainView: View {
         }
     }
 
-    private var scriptList: some View {
-        let depths = RecorderRows.depths(rows)
-        let gutter = CGFloat(max(2, String(rows.count).count)) * 8 + 26
-        return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { pair in
-                        scriptLine(pair.element, pair.offset + 1, depths[pair.offset], gutter)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            .background(alignment: .leading) {
-                HStack(spacing: 0) {
-                    Color.black.opacity(0.28).frame(width: gutter)
-                    Color.slate.frame(width: 1)
-                }
-            }
-            .background(Color.ground)
-            .overlay {
-                if displayed.isEmpty && !e.recording {
-                    VStack(spacing: 8) {
-                        Image(systemName: "record.circle").font(.system(size: 38)).foregroundColor(.off)
-                        Text(rows.isEmpty ? "Record a new macro or add an action." : "No matching actions.")
-                            .foregroundColor(.off)
-                    }
-                }
-            }
-            .onChange(of: selected) { value in
-                if let value { proxy.scrollTo(value) }
-                selectionChanged(value)
-            }
-            .onChange(of: actionEditorOpen) { _ in
-                // the editor takes room from the list: the selected line stays in view
-                DispatchQueue.main.async { if let id = selected { proxy.scrollTo(id) } }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func scriptLine(_ row: ActionRow, _ number: Int, _ depth: Int, _ gutter: CGFloat) -> some View {
-        if matchesSearch(row) {
-            CodeLineView(number: number, gutter: gutter, row: row, depth: depth, selected: selected == row.id,
-                         editing: actionEditorOpen && editingAction == row.id)
-                .simultaneousGesture(TapGesture().onEnded {
-                    NSApp.keyWindow?.makeFirstResponder(nil)      // the arrow keys belong to the list again, not to a field of the editor
-                    selected = row.id
-                })
-                .highPriorityGesture(TapGesture(count: 2).onEnded {
-                    NSApp.keyWindow?.makeFirstResponder(nil)
-                    selected = row.id
-                    beginActionEdit(row)
-                })
-        }
-    }
-
     private var statusBar: some View {
         HStack {
-            let actionCount = rows.filter { $0.action.caseInsensitiveCompare("Comment") != .orderedSame }.count
+            let actionCount = parsedRows.filter { $0.action.caseInsensitiveCompare("Comment") != .orderedSame }.count
             if showMacroBrowser {
                 Text("\(Macros.list().filter { macroName.isEmpty || $0.lowercased().contains(macroName.lowercased()) }.count) saved macros")
             } else {
-                Text("\(actionCount) action\(actionCount == 1 ? "" : "s")")
+                Text("\(actionCount) action\(actionCount == 1 ? "" : "s") · line \(ed.caretLine) of \(ed.lineCount)")
             }
             if dirty && !showMacroBrowser { Text("· unsaved").foregroundColor(.amber) }
+            if let bad = ed.errorLine, !showMacroBrowser { Text("· line \(bad): \(ed.errorMessage)").foregroundColor(.rec).lineLimit(1) }
             if e.recording { Text("· recording \(e.pending ?? "")").foregroundColor(.rec) }
             if e.playing { Text("· playing \(e.playName)").foregroundColor(.on) }
             Spacer()
             if showMacroBrowser {
                 Text("Type above to filter · pick a macro to load").font(.system(size: 11))
             } else {
-                TextField("Search actions", text: $search).frame(width: 210)
+                TextField("Find in the script", text: $search).frame(width: 210).onSubmit { findNext() }
                 Text(duration).font(.system(size: 11, design: .monospaced))
             }
         }
@@ -642,9 +577,8 @@ struct MainView: View {
 
     private var editorHeading: String {
         let what = editorKind.title.uppercased()
-        if editingAction == nil { return "INSERT " + what }
-        let n = (rows.firstIndex(where: { $0.id == editingAction }) ?? -1) + 1
-        return "EDIT " + what + (n > 0 ? " · LINE \(n)" : "")
+        guard let n = editingLine else { return "INSERT " + what }
+        return "EDIT " + what + " · LINE \(n)"
     }
 
     private var actionEditor: some View {
@@ -652,8 +586,8 @@ struct MainView: View {
             HStack {
                 Text(editorHeading).font(.system(size: 11, weight: .bold, design: .monospaced))
                 Spacer()
-                if editingAction != nil {
-                    Text("click another line to edit it · what you changed here is applied as you leave the line")
+                if editingLine != nil {
+                    Text("move the caret to another line to edit it · what you changed here is applied as you leave the line")
                         .font(.system(size: 10)).foregroundColor(.off)
                 }
             }
@@ -1023,7 +957,7 @@ struct MainView: View {
         case .mouseDrag: return n(mouseStartX) && n(mouseStartY) && n(mouseEndX) && n(mouseEndY)
         case .wheel: return (Int(wheelAmount.trimmedWS) ?? 0) > 0
         case .keyPress: return !keyName.trimmedWS.isEmpty
-        case .text: return editingAction != nil || !actionText.isEmpty
+        case .text: return editingLine != nil || !actionText.isEmpty
         case .generic: return !editAction.trimmedWS.isEmpty
         }
     }
@@ -1033,14 +967,16 @@ struct MainView: View {
     private func closeEditor() {
         InputCapture.shared.cancel()                 // a capture left armed would outlive its dialog
         actionEditorOpen = false
-        editingAction = nil
-        insertAfter = nil
+        editingLine = nil
         captureNote = ""
     }
 
-    /// Writes what the dialog says into the script (in memory; the file is saved by Save). Returns false when nothing was changed.
-    /// This is what happens to the changes of a line you leave: they are applied, never silently dropped. A NEW action that was not
-    /// touched since it was opened is dropped instead (it would only be the template).
+    private func lineIndent(_ n: Int) -> String { String(ed.lineText(n).prefix { $0 == " " || $0 == "\t" }) }
+
+    /// Writes what the dialog says into the text, as ONE undoable edit (the line is replaced, or a new line is inserted after the
+    /// caret line it was opened on). Returns false when nothing was changed. This is what happens to the changes of a line you leave:
+    /// they are applied, never silently dropped. A NEW action that was not touched since it was opened is dropped instead (it would
+    /// only be the template). The indentation of the line is kept; only a line that was changed in the dialog is rewritten.
     @discardableResult
     private func applyEdit() -> Bool {
         guard actionEditorOpen, signature() != editBaseline else { return false }
@@ -1049,49 +985,57 @@ struct MainView: View {
             return false
         }
         let c = composed()
-        if let id = editingAction {
-            guard let index = rows.firstIndex(where: { $0.id == id }) else { return false }
-            rows[index].action = c.action
-            rows[index].value = c.value
-            rows[index].source = (c.action + " " + c.value).trimmedWS
-            rows[index].label = editLabel
-            rows[index].comment = editComment
+        let row = ActionRow(id: 0, source: "", action: c.action, value: c.value, label: editLabel, comment: editComment)
+        if let n = editingLine {
+            guard n <= ed.lineCount, ed.lineText(n) == editLoadedText else {
+                e.say("the line was edited under the dialog: the dialog's changes were not applied", ORANGEC, 3)
+                return false
+            }
+            let line = lineIndent(n) + row.rendered
+            ed.replaceLine(n, with: line)
+            editLoadedText = line
         } else {
-            let id = (rows.map(\.id).max() ?? -1) + 1
-            let row = ActionRow(id: id, source: (c.action + " " + c.value).trimmedWS, action: c.action, value: c.value,
-                                label: editLabel, comment: editComment)
-            if let after = insertAfter, let index = rows.firstIndex(where: { $0.id == after }) { rows.insert(row, at: index + 1) }
-            else { rows.append(row) }
-            lastInserted = id
+            let after = min(insertAfterLine, ed.lineCount)
+            let indent = after >= 1 ? ed.indent(after: after) : ""
+            lastInsertedLine = ed.insertLine(after: after, indent + row.rendered, moveCaret: false)
         }
         editBaseline = signature()
-        dirty = true
         return true
     }
 
     private func commitActionEdit() {
-        lastInserted = nil
-        let isNew = editingAction == nil
+        lastInsertedLine = nil
+        let isNew = editingLine == nil
         applyEdit()
-        let added = lastInserted
+        let added = lastInsertedLine
         closeEditor()
-        if isNew, let added { selected = added }
+        if isNew, let added { ed.goToLine(added) }
+        ed.focus()
     }
 
-    private func selectionChanged(_ value: Int?) {
-        guard actionEditorOpen, let value, value != editingAction, let row = rows.first(where: { $0.id == value }) else { return }
-        beginActionEdit(row)                         // applies the line it leaves, then shows this one
-    }
-
-    private func beginActionEdit(_ given: ActionRow) {
+    /// the caret moved to another line: the editor follows it (the line left is applied first)
+    private func followCaret() {
+        guard actionEditorOpen, ed.liveCaretLine() != editingLine else { return }
         applyEdit()
+        beginActionEdit(line: ed.liveCaretLine())
+    }
+
+    /// the text of the line under the dialog was typed in the editor: the dialog shows it, unless the dialog has changes of its own
+    private func refreshEditorLine() {
+        guard actionEditorOpen, let n = editingLine, n <= ed.lineCount, ed.lineText(n) != editLoadedText, signature() == editBaseline else { return }
+        beginActionEdit(line: n)
+    }
+
+    private func beginActionEdit(line given: Int) {
         InputCapture.shared.cancel()
-        let row = rows.first(where: { $0.id == given.id }) ?? given
+        let n = min(max(given, 1), ed.lineCount)
+        let text = ed.lineText(n)
+        let row = RecorderRows.parse(text).first ?? ActionRow(id: 0, source: "", action: "", value: "", label: "", comment: "")
         showMacroBrowser = false
-        editingAction = row.id
-        insertAfter = nil
+        editingLine = n
         actionEditorOpen = true
         captureNote = ""
+        editLoadedText = text
         editAction = row.action
         editValue = row.value
         editLabel = row.label
@@ -1104,11 +1048,10 @@ struct MainView: View {
     private func beginNewAction(_ source: String, blank: Bool = false) {
         guard let row = RecorderRows.parse(source + "\n").first else { return }
         applyEdit()
-        let after = selected
         showMacroBrowser = false
         InputCapture.shared.cancel()
-        editingAction = nil
-        insertAfter = after
+        editingLine = nil
+        insertAfterLine = ed.liveCaretLine()
         actionEditorOpen = true
         captureNote = ""
         editAction = row.action
@@ -1165,44 +1108,19 @@ struct MainView: View {
         }
     }
 
-    // MARK: the keys of the script view (↑ ↓ move the selection, ⌥↑ ⌥↓ move the line, Return edits, Delete removes): one monitor,
-    // only while the recorder window is the key window and no text field has the keyboard, and never while a CAPTURE waits
-
-    private func installKeys() {
-        guard keyMonitor == nil else { return }
-        let box = KeyMonitorBox()
-        box.token = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            guard !InputCapture.shared.armed, !showMacroBrowser, let win = NSApp.keyWindow, win.title == APP_NAME,
-                  !(win.firstResponder is NSText), !event.modifierFlags.contains(.command), !event.modifierFlags.contains(.control) else { return event }
-            let option = event.modifierFlags.contains(.option)
-            switch event.keyCode {
-            case 126: if option { moveSelected(-1) } else { moveSelection(-1) }
-            case 125: if option { moveSelected(1) } else { moveSelection(1) }
-            case 36, 76: guard selected != nil, !actionEditorOpen else { return event }; editCurrent()     // with the editor open Return is its OK
-            case 51, 117: guard selected != nil else { return event }; deleteSelection()
-            default: return event
-            }
-            return nil
-        }
-        keyMonitor = box
-    }
-
-    // MARK: the script
+    // MARK: the script (the text is the model)
 
     private func reload() {
         if previewing && Date().timeIntervalSince(previewAt) < 300 { return }      // a picture of another macro is on show (UIApi)
         previewing = false
         closeEditor()
-        let before = selected.flatMap { id in rows.firstIndex(where: { $0.id == id }) }
         let text = e.text ?? e.current.flatMap { Macros.read($0).text } ?? (readText(LAST_AHK) ?? "")
-        rows = RecorderRows.parse(text)
-        // the line numbers of the saved text are the new ids: the selection stays on the same line number
-        selected = before.flatMap { $0 < rows.count ? rows[$0].id : nil }
+        if text != ed.text { ed.setText(text) }
+        savedText = text
         if !macroFieldFocused {
             macroName = e.current ?? e.pending ?? ""
             showMacroBrowser = false
         }
-        dirty = false
     }
 
     /// unsaved changes to the script: ask before they are replaced (another macro, a new macro)
@@ -1221,7 +1139,7 @@ struct MainView: View {
             saveNamedMacro()
             return !dirty
         case .alertSecondButtonReturn:
-            dirty = false
+            savedText = ed.text
             return true
         default:
             return false
@@ -1235,9 +1153,8 @@ struct MainView: View {
         macroFieldFocused = false
         showMacroBrowser = false
         showMacroPicker = false
-        selected = nil
-        dirty = false
         previewing = false
+        savedText = ed.text
         reload()
     }
 
@@ -1253,43 +1170,27 @@ struct MainView: View {
         }
     }
 
+    /// the lines the selection touches (or the caret line) are deleted
     private func deleteSelection() {
-        guard let selected, let index = rows.firstIndex(where: { $0.id == selected }) else { return }
-        if editingAction == selected { closeEditor() }
-        rows.remove(at: index)
-        // the line below (or the last one) takes the selection, so the arrow keys and Delete can go on
-        self.selected = rows.isEmpty ? nil : rows[min(index, rows.count - 1)].id
-        dirty = true
+        let lines = ed.selectedLines()
+        if let n = editingLine, lines.contains(n) { closeEditor() }
+        ed.deleteLines(lines)
     }
 
-    private func moveSelection(_ step: Int) {
-        let list = displayed
-        guard !list.isEmpty else { return }
-        let at = list.firstIndex(where: { $0.id == selected })
-        let next = at.map { min(max($0 + step, 0), list.count - 1) } ?? (step > 0 ? 0 : list.count - 1)
-        selected = list[next].id
-    }
-
-    /// the line moves up or down (⌥↑ ⌥↓, as in a code editor)
+    /// the line (or the selected lines) moves up or down (⌥↑ ⌥↓, as in a code editor)
     private func moveSelected(_ step: Int) {
-        guard search.isEmpty, let selected, let index = rows.firstIndex(where: { $0.id == selected }) else { return }
-        let to = index + step
-        guard to >= 0, to < rows.count else { return }
-        rows.swapAt(index, to)
-        dirty = true
+        applyEdit()
+        ed.moveLines(step)
+    }
+
+    private func findNext() {
+        if !ed.find(search) { e.say("not found: " + search, GREYC, 2) }
     }
 
     private func replaceAll() {
         guard !search.isEmpty else { return }
         applyEdit()
-        closeEditor()
-        for index in rows.indices {
-            rows[index].source = rows[index].source.replacingOccurrences(of: search, with: replace)
-            rows[index].value = rows[index].value.replacingOccurrences(of: search, with: replace)
-            rows[index].label = rows[index].label.replacingOccurrences(of: search, with: replace)
-            rows[index].comment = rows[index].comment.replacingOccurrences(of: search, with: replace)
-        }
-        dirty = true
+        ed.replaceAll(search, replace)
     }
 
     private func save() {
@@ -1298,9 +1199,18 @@ struct MainView: View {
 
     private func saveNamedMacro() {
         applyEdit()                                  // what is typed in the editor is part of what is saved
+        if previewing {                              // a macro shown through the API: written as it is, nothing else changes
+            let shown = Macros.clean(macroName)
+            guard !shown.isEmpty else { return }
+            let r = e.saveScript(shown, ed.text)
+            if r.ok { savedText = ed.text }
+            e.say(r.warn ?? ("saved " + shown), r.warn == nil ? GREENC : REDC, 3)
+            return
+        }
         if e.recording {
+            let wasDirty = dirty
             _ = e.stopRecording()
-            if !dirty, let text = e.text { rows = RecorderRows.parse(text) }
+            if !wasDirty, let text = e.text { ed.setText(text); savedText = text }
         }
         let name = Macros.clean(macroName)
         guard !name.isEmpty else {
@@ -1319,22 +1229,23 @@ struct MainView: View {
             e.say("choose that saved macro to edit it, or use a new name", ORANGEC, 3)
             return
         }
-        let result = e.saveScript(name, RecorderRows.render(rows))
-        if let warning = result.warn {
-            e.say(warning, REDC, 4)
-        } else {
-            e.current = name
-            e.text = RecorderRows.render(rows)
-            e.settings.current = name
-            _ = Slots.autoPlace(&e.settings.slots, name)
-            e.settings.save()
-            macroName = name
-            macroFieldFocused = false
-            showMacroBrowser = false
-            dirty = false
-            previewing = false
-            e.say("saved " + name, GREENC, 1.6)
+        // the text is written as it stands, blank lines and odd spacing included; a line that does not parse is saved too (and named)
+        let result = e.saveScript(name, ed.text)
+        guard result.ok else {
+            e.say(result.warn ?? "could not save", REDC, 4)
+            return
         }
+        e.current = name
+        e.text = ed.text
+        e.settings.current = name
+        _ = Slots.autoPlace(&e.settings.slots, name)
+        e.settings.save()
+        macroName = name
+        macroFieldFocused = false
+        showMacroBrowser = false
+        savedText = ed.text
+        previewing = false
+        e.say(result.warn ?? ("saved " + name), result.warn == nil ? GREENC : REDC, result.warn == nil ? 1.6 : 4)
         e.changed()
     }
 
@@ -1346,10 +1257,9 @@ struct MainView: View {
         e.text = nil
         e.settings.current = nil
         e.settings.save()
-        rows = []
-        selected = nil
+        ed.setText("", keepCaret: false)
+        savedText = ""
         previewing = false
-        dirty = true
         macroName = Macros.croName()
         showMacroBrowser = false
         macroFieldFocused = true
@@ -1357,22 +1267,16 @@ struct MainView: View {
     }
 
     private func editCurrent() {
-        if let selected, let row = rows.first(where: { $0.id == selected }) {
-            beginActionEdit(row)
-        } else if let first = rows.first {
-            selected = first.id
-            beginActionEdit(first)
-        } else {
-            macroFieldFocused = true
-        }
+        applyEdit()
+        beginActionEdit(line: ed.liveCaretLine())
     }
 
     /// PLAY plays what the window shows: with unsaved changes the changed script runs (nothing is written to the file)
     private func playShown() {
         if e.playing || e.recording { e.togglePlay(); return }
         applyEdit()
-        if dirty && !rows.isEmpty {
-            e.runScript(RecorderRows.render(rows), selectedName)
+        if dirty && !ed.text.isEmpty {
+            e.runScript(ed.text, selectedName)
         } else {
             e.togglePlay()
         }
@@ -1380,29 +1284,27 @@ struct MainView: View {
 
     private func playFromSelection() {
         applyEdit()
-        guard let selected, let index = rows.firstIndex(where: { $0.id == selected }) else { return playShown() }
-        e.runScript(RecorderRows.render(Array(rows[index...])), selectedName + " · from selected action")
+        e.runScript(ed.textFrom(line: ed.liveCaretLine()), selectedName + " · from the caret line")
     }
 
     // MARK: the window's own API (UIApi.swift): open, show another macro, open a dialog, for screenshots and tests
 
     private func runBridge(_ c: [String: Any]) {
+        if previewing { previewAt = Date() }
         switch c["op"] as? String ?? "" {
         case "preview":
             let name = c["macro"] as? String ?? ""
             guard let text = Macros.read(name).text else { return }
             closeEditor()
-            rows = RecorderRows.parse(text)
+            ed.setText(text, keepCaret: false)
+            savedText = text
             macroName = name
-            selected = nil
-            dirty = false
             showMacroBrowser = false
             previewing = true
             previewAt = Date()
         case "reset":
             closeEditor()
             previewing = false
-            dirty = false
             reload()
         case "dialog":
             previewAt = Date()
@@ -1418,15 +1320,18 @@ struct MainView: View {
             case "window": beginNewAction("WinActivate \"App\"")
             default: break
             }
-        case "select", "edit":
-            if previewing { previewAt = Date() }
-            let line = (c["line"] as? Int) ?? 0
-            guard line >= 1, line <= rows.count else { return }
-            let row = rows[line - 1]
-            selected = row.id
-            if (c["op"] as? String) == "edit" { beginActionEdit(row) }
+        case "select":
+            ed.goToLine((c["line"] as? Int) ?? 1)
+        case "edit":
+            ed.goToLine((c["line"] as? Int) ?? 1)
+            applyEdit()
+            beginActionEdit(line: ed.liveCaretLine())
         case "close-dialog":
             closeEditor()
+        case "save":
+            saveNamedMacro()
+        case "commit":
+            commitActionEdit()
         default:
             break
         }
